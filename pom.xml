@@ -17,11 +17,12 @@
     <java.version>25</java.version>
     <springdoc.version>3.1.1</springdoc.version>
     <datasource-micrometer.version>2.2.1</datasource-micrometer.version>
-    <otel-logback-appender.version>2.33.1-alpha</otel-logback-appender.version>
+    <otel-logback-appender.version>2.21.0-alpha</otel-logback-appender.version>
     <testcontainers.version>2.0.5</testcontainers.version>
     <jqwik.version>1.9.3</jqwik.version>
     <jib.version>3.4.5</jib.version>
     <jqwik.tries>10000</jqwik.tries>
+    <jqwik.it.tries>1000</jqwik.it.tries>
   </properties>
 
   <dependencies>
@@ -70,7 +71,10 @@
         <executions>
           <execution><goals><goal>integration-test</goal><goal>verify</goal></goals></execution>
         </executions>
-        <configuration><includes><include>**/*IT.java</include></includes></configuration>
+        <configuration>
+          <includes><include>**/*IT.java</include></includes>
+          <systemPropertyVariables><jqwik.tries.default>${jqwik.it.tries}</jqwik.tries.default></systemPropertyVariables>
+        </configuration>
       </plugin>
       <plugin>
         <groupId>com.google.cloud.tools</groupId>

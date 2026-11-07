@@ -1,0 +1,367 @@
+{
+ "annotations": {
+  "list": [
+   {
+    "datasource": {
+     "type": "grafana",
+     "uid": "-- Grafana --"
+    },
+    "enable": true,
+    "iconColor": "blue",
+    "name": "Gatling / chaos runs",
+    "target": {
+     "limit": 100,
+     "tags": [
+      "gatling"
+     ],
+     "type": "tags"
+    }
+   }
+  ]
+ },
+ "editable": false,
+ "panels": [
+  {
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "description": "",
+   "fieldConfig": {
+    "defaults": {},
+    "overrides": []
+   },
+   "gridPos": {
+    "h": 4,
+    "w": 8,
+    "x": 0,
+    "y": 0
+   },
+   "id": 17,
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "sum(rate(ledger_transfer_retries_total{run_id=~\"$run_id\",scenario=~\"$scenario\",strategy=~\"$strategy\"}[1m])) / sum(rate(ledger_transfers_total{run_id=~\"$run_id\",scenario=~\"$scenario\",strategy=~\"$strategy\"}[1m]))",
+     "legendFormat": "",
+     "refId": "A"
+    }
+   ],
+   "title": "Retry ratio",
+   "type": "stat"
+  },
+  {
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "description": "",
+   "fieldConfig": {
+    "defaults": {
+     "unit": "s"
+    },
+    "overrides": []
+   },
+   "gridPos": {
+    "h": 4,
+    "w": 8,
+    "x": 8,
+    "y": 0
+   },
+   "id": 18,
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "histogram_quantile(0.99, sum by (le) (rate(ledger_lock_wait_seconds_bucket{run_id=~\"$run_id\",scenario=~\"$scenario\",strategy=~\"$strategy\"}[1m])))",
+     "legendFormat": "",
+     "refId": "A"
+    }
+   ],
+   "title": "Lock wait p99",
+   "type": "stat"
+  },
+  {
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "description": "",
+   "fieldConfig": {
+    "defaults": {},
+    "overrides": []
+   },
+   "gridPos": {
+    "h": 4,
+    "w": 8,
+    "x": 16,
+    "y": 0
+   },
+   "id": 19,
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "max(pg_locks_waiting)",
+     "legendFormat": "",
+     "refId": "A"
+    }
+   ],
+   "title": "Waiting locks",
+   "type": "stat"
+  },
+  {
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "description": "",
+   "fieldConfig": {
+    "defaults": {
+     "unit": "ops"
+    },
+    "overrides": []
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 12,
+    "x": 0,
+    "y": 4
+   },
+   "id": 20,
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "sum by (strategy, reason) (rate(ledger_transfer_retries_total{run_id=~\"$run_id\",scenario=~\"$scenario\"}[1m]))",
+     "legendFormat": "{{strategy}} {{reason}}",
+     "refId": "A"
+    }
+   ],
+   "title": "Retries by strategy and reason",
+   "type": "timeseries"
+  },
+  {
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "description": "",
+   "fieldConfig": {
+    "defaults": {},
+    "overrides": []
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 12,
+    "x": 12,
+    "y": 4
+   },
+   "id": 21,
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "sum by (strategy) (rate(ledger_transfer_attempts_sum{run_id=~\"$run_id\",scenario=~\"$scenario\"}[1m])) / sum by (strategy) (rate(ledger_transfer_attempts_count{run_id=~\"$run_id\",scenario=~\"$scenario\"}[1m]))",
+     "legendFormat": "{{strategy}}",
+     "refId": "A"
+    }
+   ],
+   "title": "Attempts per transfer (mean)",
+   "type": "timeseries"
+  },
+  {
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "description": "",
+   "fieldConfig": {
+    "defaults": {},
+    "overrides": []
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 12,
+    "x": 0,
+    "y": 12
+   },
+   "id": 22,
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "increase(postgresql_deadlocks_total[1m])",
+     "legendFormat": "deadlocks",
+     "refId": "A"
+    }
+   ],
+   "title": "Deadlocks",
+   "type": "timeseries"
+  },
+  {
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "description": "",
+   "fieldConfig": {
+    "defaults": {},
+    "overrides": []
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 12,
+    "x": 12,
+    "y": 12
+   },
+   "id": 23,
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "max(hikaricp_connections_pending)",
+     "legendFormat": "pending",
+     "refId": "A"
+    },
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "histogram_quantile(0.99, sum by (le) (rate(hikaricp_connections_acquire_seconds_bucket[1m])))",
+     "legendFormat": "acquire p99",
+     "refId": "B"
+    }
+   ],
+   "title": "Hikari pending / acquire p99",
+   "type": "timeseries"
+  },
+  {
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "description": "",
+   "fieldConfig": {
+    "defaults": {
+     "unit": "s"
+    },
+    "overrides": []
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 24,
+    "x": 0,
+    "y": 20
+   },
+   "id": 24,
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "histogram_quantile(0.99, sum by (le, buckets) (rate(ledger_hot_bucket_lock_seconds_bucket{run_id=~\"$run_id\",scenario=~\"$scenario\"}[1m])))",
+     "legendFormat": "N={{buckets}}",
+     "refId": "A"
+    }
+   ],
+   "title": "Hot-bucket lock wait by N",
+   "type": "timeseries"
+  }
+ ],
+ "refresh": "10s",
+ "schemaVersion": 39,
+ "tags": [
+  "payflow"
+ ],
+ "templating": {
+  "list": [
+   {
+    "allValue": ".*",
+    "current": {
+     "text": "All",
+     "value": "$__all"
+    },
+    "datasource": {
+     "type": "prometheus",
+     "uid": "prometheus"
+    },
+    "includeAll": true,
+    "label": "run_id",
+    "multi": true,
+    "name": "run_id",
+    "query": {
+     "query": "label_values(ledger_transfers_total, run_id)",
+     "refId": "run_id"
+    },
+    "refresh": 2,
+    "type": "query"
+   },
+   {
+    "allValue": ".*",
+    "current": {
+     "text": "All",
+     "value": "$__all"
+    },
+    "datasource": {
+     "type": "prometheus",
+     "uid": "prometheus"
+    },
+    "includeAll": true,
+    "label": "scenario",
+    "multi": true,
+    "name": "scenario",
+    "query": {
+     "query": "label_values(ledger_transfers_total, scenario)",
+     "refId": "scenario"
+    },
+    "refresh": 2,
+    "type": "query"
+   },
+   {
+    "allValue": ".*",
+    "current": {
+     "text": "All",
+     "value": "$__all"
+    },
+    "datasource": {
+     "type": "prometheus",
+     "uid": "prometheus"
+    },
+    "includeAll": true,
+    "label": "strategy",
+    "multi": true,
+    "name": "strategy",
+    "query": {
+     "query": "label_values(ledger_transfers_total, strategy)",
+     "refId": "strategy"
+    },
+    "refresh": 2,
+    "type": "query"
+   }
+  ]
+ },
+ "time": {
+  "from": "now-15m",
+  "to": "now"
+ },
+ "title": "Contention",
+ "uid": "contention",
+ "version": 1
+}

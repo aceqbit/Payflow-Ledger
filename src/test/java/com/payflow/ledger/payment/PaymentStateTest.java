@@ -9,9 +9,9 @@ import java.util.Set;
 import static com.payflow.ledger.payment.PaymentState.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-class PaymentStateTest {
+public class PaymentStateTest {
     /** The expected table, written out independently of the implementation. */
-    static final Map<PaymentState, Set<PaymentState>> EXPECTED = Map.of(
+    public static final Map<PaymentState, Set<PaymentState>> EXPECTED = Map.of(
             CREATED, EnumSet.of(AUTHORIZED),
             AUTHORIZED, EnumSet.of(PARTIALLY_CAPTURED, CAPTURED, VOIDED),
             PARTIALLY_CAPTURED, EnumSet.of(PARTIALLY_CAPTURED, CAPTURED, PARTIALLY_REFUNDED, REFUNDED),

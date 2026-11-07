@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+  <!-- JSON console (logging.structured.format.console=logstash) + OTLP log export. -->
+  <include resource="org/springframework/boot/logging/logback/base.xml"/>
+
+  <springProfile name="!telemetry-off &amp; !metrics-only">
+    <appender name="OTEL" class="io.opentelemetry.instrumentation.logback.appender.v1_0.OpenTelemetryAppender">
+      <captureKeyValuePairAttributes>true</captureKeyValuePairAttributes>
+      <captureMdcAttributes>*</captureMdcAttributes>
+    </appender>
+    <root level="INFO">
+      <appender-ref ref="OTEL"/>
+    </root>
+  </springProfile>
+</configuration>

@@ -8,6 +8,24 @@ spring:
     hikari.maximum-pool-size: ${DB_POOL:16}
   jpa.hibernate.ddl-auto: none
   flyway.enabled: true
+
+logging.structured.format.console: logstash
+
 management:
   endpoints.web.exposure.include: health,info,prometheus
   endpoint.health.probes.enabled: true
+  # All three signals go over OTLP to the Collector (Collector tail-samples, so the app samples 100%).
+  otlp.metrics.export:
+    url: ${OTLP_ENDPOINT:http://localhost:4318}/v1/metrics
+    step: 5s
+  opentelemetry:
+    tracing.export.otlp.endpoint: ${OTLP_ENDPOINT:http://localhost:4318}/v1/traces
+    logging.export.otlp.endpoint: ${OTLP_ENDPOINT:http://localhost:4318}/v1/logs
+    resource-attributes:
+      service.name: payflow-ledger
+      deployment.environment: ${ENV:local}
+      run_id: ${RUN_ID:adhoc}
+      scenario: ${SCENARIO:none}
+  tracing.sampling.probability: 1.0
+  metrics.distribution:
+    percentiles-histogram.http.server.requests: true

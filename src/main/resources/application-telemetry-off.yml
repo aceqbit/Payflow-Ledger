@@ -1,0 +1,6 @@
+# Bench profile for measuring telemetry overhead: no tracing, no OTLP export of any signal.
+management:
+  otlp.metrics.export.enabled: false
+  tracing:
+    enabled: false
+    export.enabled: false

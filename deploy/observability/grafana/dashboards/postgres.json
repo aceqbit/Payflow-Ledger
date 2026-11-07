@@ -1,0 +1,331 @@
+{
+ "annotations": {
+  "list": [
+   {
+    "datasource": {
+     "type": "grafana",
+     "uid": "-- Grafana --"
+    },
+    "enable": true,
+    "iconColor": "blue",
+    "name": "Gatling / chaos runs",
+    "target": {
+     "limit": 100,
+     "tags": [
+      "gatling"
+     ],
+     "type": "tags"
+    }
+   }
+  ]
+ },
+ "editable": false,
+ "panels": [
+  {
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "description": "",
+   "fieldConfig": {
+    "defaults": {
+     "unit": "ops"
+    },
+    "overrides": []
+   },
+   "gridPos": {
+    "h": 4,
+    "w": 8,
+    "x": 0,
+    "y": 0
+   },
+   "id": 25,
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "sum(rate(postgresql_commits_total[1m]))",
+     "legendFormat": "",
+     "refId": "A"
+    }
+   ],
+   "title": "Commits/s",
+   "type": "stat"
+  },
+  {
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "description": "",
+   "fieldConfig": {
+    "defaults": {
+     "unit": "percent"
+    },
+    "overrides": []
+   },
+   "gridPos": {
+    "h": 4,
+    "w": 8,
+    "x": 8,
+    "y": 0
+   },
+   "id": 26,
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "sum(rate(postgresql_rollbacks_total[1m])) / clamp_min(sum(rate(postgresql_commits_total[1m])) + sum(rate(postgresql_rollbacks_total[1m])), 1) * 100",
+     "legendFormat": "",
+     "refId": "A"
+    }
+   ],
+   "title": "Rollback %",
+   "type": "stat"
+  },
+  {
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "description": "",
+   "fieldConfig": {
+    "defaults": {},
+    "overrides": []
+   },
+   "gridPos": {
+    "h": 4,
+    "w": 8,
+    "x": 16,
+    "y": 0
+   },
+   "id": 27,
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "max(postgresql_backends)",
+     "legendFormat": "",
+     "refId": "A"
+    }
+   ],
+   "title": "Backends",
+   "type": "stat"
+  },
+  {
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "description": "",
+   "fieldConfig": {
+    "defaults": {},
+    "overrides": []
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 12,
+    "x": 0,
+    "y": 4
+   },
+   "id": 28,
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "sum by (wait_event_type) (pg_wait_events)",
+     "legendFormat": "{{wait_event_type}}",
+     "refId": "A"
+    }
+   ],
+   "title": "Wait events",
+   "type": "timeseries"
+  },
+  {
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "description": "",
+   "fieldConfig": {
+    "defaults": {
+     "unit": "s"
+    },
+    "overrides": []
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 12,
+    "x": 12,
+    "y": 4
+   },
+   "id": 29,
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "topk(10, pg_statement_mean_seconds)",
+     "legendFormat": "{{queryid}}",
+     "refId": "A"
+    }
+   ],
+   "title": "Top 10 statements mean time",
+   "type": "timeseries"
+  },
+  {
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "description": "",
+   "fieldConfig": {
+    "defaults": {
+     "unit": "bytes"
+    },
+    "overrides": []
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 12,
+    "x": 0,
+    "y": 12
+   },
+   "id": 30,
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "max by (slot) (pg_replication_slot_lag_bytes)",
+     "legendFormat": "{{slot}}",
+     "refId": "A"
+    }
+   ],
+   "title": "WAL replication slot lag",
+   "type": "timeseries"
+  },
+  {
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "description": "",
+   "fieldConfig": {
+    "defaults": {
+     "unit": "percentunit"
+    },
+    "overrides": []
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 12,
+    "x": 12,
+    "y": 12
+   },
+   "id": 31,
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "container_cpu_utilization{container=~\".*postgres.*\"}",
+     "legendFormat": "{{container}}",
+     "refId": "A"
+    }
+   ],
+   "title": "DB container CPU",
+   "type": "timeseries"
+  }
+ ],
+ "refresh": "10s",
+ "schemaVersion": 39,
+ "tags": [
+  "payflow"
+ ],
+ "templating": {
+  "list": [
+   {
+    "allValue": ".*",
+    "current": {
+     "text": "All",
+     "value": "$__all"
+    },
+    "datasource": {
+     "type": "prometheus",
+     "uid": "prometheus"
+    },
+    "includeAll": true,
+    "label": "run_id",
+    "multi": true,
+    "name": "run_id",
+    "query": {
+     "query": "label_values(ledger_transfers_total, run_id)",
+     "refId": "run_id"
+    },
+    "refresh": 2,
+    "type": "query"
+   },
+   {
+    "allValue": ".*",
+    "current": {
+     "text": "All",
+     "value": "$__all"
+    },
+    "datasource": {
+     "type": "prometheus",
+     "uid": "prometheus"
+    },
+    "includeAll": true,
+    "label": "scenario",
+    "multi": true,
+    "name": "scenario",
+    "query": {
+     "query": "label_values(ledger_transfers_total, scenario)",
+     "refId": "scenario"
+    },
+    "refresh": 2,
+    "type": "query"
+   },
+   {
+    "allValue": ".*",
+    "current": {
+     "text": "All",
+     "value": "$__all"
+    },
+    "datasource": {
+     "type": "prometheus",
+     "uid": "prometheus"
+    },
+    "includeAll": true,
+    "label": "strategy",
+    "multi": true,
+    "name": "strategy",
+    "query": {
+     "query": "label_values(ledger_transfers_total, strategy)",
+     "refId": "strategy"
+    },
+    "refresh": 2,
+    "type": "query"
+   }
+  ]
+ },
+ "time": {
+  "from": "now-15m",
+  "to": "now"
+ },
+ "title": "Postgres",
+ "uid": "postgres",
+ "version": 1
+}

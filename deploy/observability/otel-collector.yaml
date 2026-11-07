@@ -1,0 +1,75 @@
+# OTel Collector (contrib). App pushes OTLP; the Collector also pulls Postgres + container metrics,
+# so the app carries no exporter logic.
+receivers:
+  otlp:
+    protocols:
+      grpc: {endpoint: 0.0.0.0:4317}
+      http: {endpoint: 0.0.0.0:4318}
+  postgresql:
+    endpoint: postgres:5432
+    transport: tcp
+    username: ${env:DB_USER}
+    password: ${env:DB_PASSWORD}
+    databases: [ledger]
+    collection_interval: 10s
+    tls: {insecure: true}
+  sqlquery:
+    driver: postgres
+    datasource: "host=postgres port=5432 user=${env:DB_USER} password=${env:DB_PASSWORD} dbname=ledger sslmode=disable"
+    collection_interval: 10s
+    queries:
+      - sql: "SELECT count(*) AS waiting FROM pg_locks WHERE NOT granted"
+        metrics:
+          - {metric_name: pg_locks_waiting, value_column: waiting, value_type: int, data_type: gauge}
+      - sql: "SELECT coalesce(wait_event_type, 'none') AS wait_event_type, count(*) AS n FROM pg_stat_activity WHERE state = 'active' GROUP BY 1"
+        metrics:
+          - {metric_name: pg_wait_events, value_column: n, value_type: int, data_type: gauge, attribute_columns: [wait_event_type]}
+      - sql: "SELECT queryid::text AS queryid, (mean_exec_time / 1000.0)::float8 AS mean_seconds FROM pg_stat_statements ORDER BY mean_exec_time DESC LIMIT 10"
+        metrics:
+          - {metric_name: pg_statement_mean_seconds, value_column: mean_seconds, value_type: double, data_type: gauge, attribute_columns: [queryid]}
+      - sql: "SELECT slot_name AS slot, coalesce(pg_wal_lsn_diff(pg_current_wal_lsn(), confirmed_flush_lsn), 0)::bigint AS lag FROM pg_replication_slots"
+        metrics:
+          - {metric_name: pg_replication_slot_lag_bytes, value_column: lag, value_type: int, data_type: gauge, attribute_columns: [slot]}
+  docker_stats:
+    endpoint: unix:///var/run/docker.sock
+    collection_interval: 10s
+
+processors:
+  memory_limiter: {check_interval: 1s, limit_mib: 512}
+  resource:
+    attributes:
+      - {key: deployment.environment, value: local, action: insert}
+  batch: {}
+  # keep every error and every slow trace, sample the rest. TAIL_SAMPLE_PERCENT=100 during chaos runs.
+  tail_sampling:
+    decision_wait: 5s
+    policies:
+      - {name: errors, type: status_code, status_code: {status_codes: [ERROR]}}
+      - {name: slow, type: latency, latency: {threshold_ms: 50}}
+      - {name: rest, type: probabilistic, probabilistic: {sampling_percentage: ${env:TAIL_SAMPLE_PERCENT}}}
+
+exporters:
+  otlphttp/prometheus:
+    endpoint: http://prometheus:9090/api/v1/otlp
+    tls: {insecure: true}
+  otlp/tempo:
+    endpoint: tempo:4317
+    tls: {insecure: true}
+  otlphttp/loki:
+    endpoint: http://loki:3100/otlp
+    tls: {insecure: true}
+
+service:
+  pipelines:
+    metrics:
+      receivers: [otlp, postgresql, sqlquery, docker_stats]
+      processors: [memory_limiter, resource, batch]
+      exporters: [otlphttp/prometheus]
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, tail_sampling, batch]
+      exporters: [otlp/tempo]
+    logs:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [otlphttp/loki]

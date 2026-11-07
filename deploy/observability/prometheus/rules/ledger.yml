@@ -1,0 +1,28 @@
+groups:
+  - name: ledger-recording
+    interval: 15s
+    rules:
+      - record: ledger:transfer_p99:1m
+        expr: histogram_quantile(0.99, sum by (le, strategy, run_id) (rate(ledger_transfer_duration_seconds_bucket[1m])))
+      - record: ledger:tps:1m
+        expr: sum by (strategy, run_id) (rate(ledger_transfers_total{outcome="ok"}[1m]))
+      - record: ledger:retry_ratio:1m
+        expr: sum by (strategy, run_id) (rate(ledger_transfer_retries_total[1m])) / sum by (strategy, run_id) (rate(ledger_transfers_total[1m]))
+
+      - record: ledger:sli_availability:5m
+        expr: 1 - sum(rate(http_server_requests_seconds_count{uri=~"/v1/.*",status=~"5.."}[5m])) / sum(rate(http_server_requests_seconds_count{uri=~"/v1/.*"}[5m]))
+      - record: ledger:sli_availability:30m
+        expr: 1 - sum(rate(http_server_requests_seconds_count{uri=~"/v1/.*",status=~"5.."}[30m])) / sum(rate(http_server_requests_seconds_count{uri=~"/v1/.*"}[30m]))
+      - record: ledger:sli_availability:1h
+        expr: 1 - sum(rate(http_server_requests_seconds_count{uri=~"/v1/.*",status=~"5.."}[1h])) / sum(rate(http_server_requests_seconds_count{uri=~"/v1/.*"}[1h]))
+      - record: ledger:sli_availability:6h
+        expr: 1 - sum(rate(http_server_requests_seconds_count{uri=~"/v1/.*",status=~"5.."}[6h])) / sum(rate(http_server_requests_seconds_count{uri=~"/v1/.*"}[6h]))
+
+      - record: ledger:sli_latency_50ms:5m
+        expr: sum(rate(ledger_transfer_duration_seconds_bucket{le="0.05"}[5m])) / sum(rate(ledger_transfer_duration_seconds_count[5m]))
+      - record: ledger:sli_latency_50ms:30m
+        expr: sum(rate(ledger_transfer_duration_seconds_bucket{le="0.05"}[30m])) / sum(rate(ledger_transfer_duration_seconds_count[30m]))
+      - record: ledger:sli_latency_50ms:1h
+        expr: sum(rate(ledger_transfer_duration_seconds_bucket{le="0.05"}[1h])) / sum(rate(ledger_transfer_duration_seconds_count[1h]))
+      - record: ledger:sli_latency_50ms:6h
+        expr: sum(rate(ledger_transfer_duration_seconds_bucket{le="0.05"}[6h])) / sum(rate(ledger_transfer_duration_seconds_count[6h]))

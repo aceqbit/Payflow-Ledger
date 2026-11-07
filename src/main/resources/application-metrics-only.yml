@@ -1,0 +1,4 @@
+# Docker-less runs: metrics go straight to a native Prometheus OTLP receiver; no traces or logs export.
+management:
+  otlp.metrics.export.url: ${PROM_OTLP_URL:http://localhost:9090/api/v1/otlp/v1/metrics}
+  tracing.export.enabled: false

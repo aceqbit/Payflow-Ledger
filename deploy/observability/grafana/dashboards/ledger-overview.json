@@ -1,0 +1,376 @@
+{
+ "annotations": {
+  "list": [
+   {
+    "datasource": {
+     "type": "grafana",
+     "uid": "-- Grafana --"
+    },
+    "enable": true,
+    "iconColor": "blue",
+    "name": "Gatling / chaos runs",
+    "target": {
+     "limit": 100,
+     "tags": [
+      "gatling"
+     ],
+     "type": "tags"
+    }
+   }
+  ]
+ },
+ "editable": false,
+ "panels": [
+  {
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "description": "",
+   "fieldConfig": {
+    "defaults": {
+     "unit": "ops"
+    },
+    "overrides": []
+   },
+   "gridPos": {
+    "h": 4,
+    "w": 6,
+    "x": 0,
+    "y": 0
+   },
+   "id": 1,
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "sum(rate(ledger_transfers_total{run_id=~\"$run_id\",scenario=~\"$scenario\",outcome=\"ok\", strategy=~\"$strategy\"}[1m]))",
+     "legendFormat": "",
+     "refId": "A"
+    }
+   ],
+   "title": "TPS",
+   "type": "stat"
+  },
+  {
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "description": "",
+   "fieldConfig": {
+    "defaults": {
+     "unit": "s"
+    },
+    "overrides": []
+   },
+   "gridPos": {
+    "h": 4,
+    "w": 6,
+    "x": 6,
+    "y": 0
+   },
+   "id": 2,
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "histogram_quantile(0.99, sum by (le) (rate(ledger_transfer_duration_seconds_bucket{run_id=~\"$run_id\",scenario=~\"$scenario\",strategy=~\"$strategy\"}[1m])))",
+     "legendFormat": "",
+     "refId": "A"
+    }
+   ],
+   "title": "p99 latency",
+   "type": "stat"
+  },
+  {
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "description": "",
+   "fieldConfig": {
+    "defaults": {
+     "unit": "percent"
+    },
+    "overrides": []
+   },
+   "gridPos": {
+    "h": 4,
+    "w": 6,
+    "x": 12,
+    "y": 0
+   },
+   "id": 3,
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "sum(rate(http_server_requests_seconds_count{uri=~\"/v1/.*\",status=~\"5..\"}[5m])) / sum(rate(http_server_requests_seconds_count{uri=~\"/v1/.*\"}[5m])) * 100",
+     "legendFormat": "",
+     "refId": "A"
+    }
+   ],
+   "title": "Error %",
+   "type": "stat"
+  },
+  {
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "description": "99% of transfers under 50 ms",
+   "fieldConfig": {
+    "defaults": {
+     "color": {
+      "mode": "thresholds"
+     },
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "red",
+        "value": null
+       },
+       {
+        "color": "yellow",
+        "value": 25
+       },
+       {
+        "color": "green",
+        "value": 50
+       }
+      ]
+     },
+     "unit": "percent"
+    },
+    "overrides": []
+   },
+   "gridPos": {
+    "h": 4,
+    "w": 6,
+    "x": 18,
+    "y": 0
+   },
+   "id": 4,
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "(1 - (1 - ledger:sli_latency_50ms:6h) / 0.01) * 100",
+     "legendFormat": "",
+     "refId": "A"
+    }
+   ],
+   "title": "Latency SLO budget left",
+   "type": "stat"
+  },
+  {
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "description": "",
+   "fieldConfig": {
+    "defaults": {
+     "unit": "reqps"
+    },
+    "overrides": []
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 12,
+    "x": 0,
+    "y": 4
+   },
+   "id": 5,
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "sum by (uri, status) (rate(http_server_requests_seconds_count{uri=~\"/v1/.*\"}[1m]))",
+     "legendFormat": "{{uri}} {{status}}",
+     "refId": "A"
+    }
+   ],
+   "title": "RED by endpoint (rate)",
+   "type": "timeseries"
+  },
+  {
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "description": "Exemplars on the p99 line link to the slow trace in Tempo",
+   "fieldConfig": {
+    "defaults": {
+     "unit": "s"
+    },
+    "overrides": []
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 12,
+    "x": 12,
+    "y": 4
+   },
+   "id": 6,
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "exemplar": true,
+     "expr": "histogram_quantile(0.5, sum by (le, strategy) (rate(ledger_transfer_duration_seconds_bucket{run_id=~\"$run_id\",scenario=~\"$scenario\",strategy=~\"$strategy\"}[1m])))",
+     "legendFormat": "p50 {{strategy}}",
+     "refId": "A"
+    },
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "exemplar": true,
+     "expr": "histogram_quantile(0.95, sum by (le, strategy) (rate(ledger_transfer_duration_seconds_bucket{run_id=~\"$run_id\",scenario=~\"$scenario\",strategy=~\"$strategy\"}[1m])))",
+     "legendFormat": "p95 {{strategy}}",
+     "refId": "B"
+    },
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "exemplar": true,
+     "expr": "histogram_quantile(0.99, sum by (le, strategy) (rate(ledger_transfer_duration_seconds_bucket{run_id=~\"$run_id\",scenario=~\"$scenario\",strategy=~\"$strategy\"}[1m])))",
+     "legendFormat": "p99 {{strategy}}",
+     "refId": "C"
+    }
+   ],
+   "title": "p50 / p95 / p99 by strategy",
+   "type": "timeseries"
+  },
+  {
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "description": "",
+   "fieldConfig": {
+    "defaults": {
+     "unit": "percent"
+    },
+    "overrides": []
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 12,
+    "x": 0,
+    "y": 12
+   },
+   "id": 7,
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "(1 - (1 - ledger:sli_availability:6h) / 0.001) * 100",
+     "legendFormat": "budget %",
+     "refId": "A"
+    }
+   ],
+   "title": "Availability SLO budget left",
+   "type": "timeseries"
+  }
+ ],
+ "refresh": "10s",
+ "schemaVersion": 39,
+ "tags": [
+  "payflow"
+ ],
+ "templating": {
+  "list": [
+   {
+    "allValue": ".*",
+    "current": {
+     "text": "All",
+     "value": "$__all"
+    },
+    "datasource": {
+     "type": "prometheus",
+     "uid": "prometheus"
+    },
+    "includeAll": true,
+    "label": "run_id",
+    "multi": true,
+    "name": "run_id",
+    "query": {
+     "query": "label_values(ledger_transfers_total, run_id)",
+     "refId": "run_id"
+    },
+    "refresh": 2,
+    "type": "query"
+   },
+   {
+    "allValue": ".*",
+    "current": {
+     "text": "All",
+     "value": "$__all"
+    },
+    "datasource": {
+     "type": "prometheus",
+     "uid": "prometheus"
+    },
+    "includeAll": true,
+    "label": "scenario",
+    "multi": true,
+    "name": "scenario",
+    "query": {
+     "query": "label_values(ledger_transfers_total, scenario)",
+     "refId": "scenario"
+    },
+    "refresh": 2,
+    "type": "query"
+   },
+   {
+    "allValue": ".*",
+    "current": {
+     "text": "All",
+     "value": "$__all"
+    },
+    "datasource": {
+     "type": "prometheus",
+     "uid": "prometheus"
+    },
+    "includeAll": true,
+    "label": "strategy",
+    "multi": true,
+    "name": "strategy",
+    "query": {
+     "query": "label_values(ledger_transfers_total, strategy)",
+     "refId": "strategy"
+    },
+    "refresh": 2,
+    "type": "query"
+   }
+  ]
+ },
+ "time": {
+  "from": "now-15m",
+  "to": "now"
+ },
+ "title": "Ledger Overview",
+ "uid": "ledger-overview",
+ "version": 1
+}
