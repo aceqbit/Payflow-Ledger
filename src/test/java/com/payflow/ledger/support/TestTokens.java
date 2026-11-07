@@ -16,9 +16,18 @@ public final class TestTokens {
     private TestTokens() {}
 
     public static String forMerchant(String merchantId) {
+        return mint(merchantId, null);
+    }
+
+    public static String admin() {
+        return mint("admin", "admin");
+    }
+
+    private static String mint(String merchantId, String scope) {
         try {
             JWTClaimsSet claims = new JWTClaimsSet.Builder()
                     .subject("test-" + merchantId).claim("merchant_id", merchantId)
+                    .claim("scope", scope == null ? "" : scope)
                     .expirationTime(new Date(System.currentTimeMillis() + 3_600_000)).build();
             SignedJWT jwt = new SignedJWT(new JWSHeader(JWSAlgorithm.HS256), claims);
             jwt.sign(new MACSigner(SECRET.getBytes(StandardCharsets.UTF_8)));

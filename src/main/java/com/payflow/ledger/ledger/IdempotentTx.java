@@ -36,11 +36,13 @@ public class IdempotentTx {
             return tx.execute(status -> {
                 Optional<IdempotencyGuard.Replay> replay = guard.claim(merchantId, key, hash);
                 if (replay.isPresent()) return new ApiResult(replay.get().status(), replay.get().body());
+                com.payflow.ledger.idempotency.IdempotencyContext.set(merchantId, key);
                 ApiResult r = work.get();
                 guard.store(merchantId, key, r.status(), r.body());
                 return r;
             });
         } finally {
+            com.payflow.ledger.idempotency.IdempotencyContext.clear();
             metrics.roundtrips(operation, CountingJdbc.count());
         }
     }

@@ -67,6 +67,7 @@ public class TransferService {
                 metrics.transferDuration(strategy.name(), outcome, Duration.ofNanos(System.nanoTime() - t0));
             }
             lastWasFirst.remove();
+            com.payflow.ledger.idempotency.IdempotencyContext.clear();
         }
     }
 
@@ -79,6 +80,7 @@ public class TransferService {
             return new ApiResult(replay.get().status(), replay.get().body());
         }
         lastWasFirst.set(true);
+        com.payflow.ledger.idempotency.IdempotencyContext.set(cmd.merchantId(), key);
 
         PostResult post = strategy.post(cmd);
         ApiResult result;

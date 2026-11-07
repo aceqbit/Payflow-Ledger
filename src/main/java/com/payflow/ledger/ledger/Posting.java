@@ -38,7 +38,10 @@ public class Posting {
 
     /** Caller holds the locks (or runs at an isolation that protects the read). Returns the transaction id. */
     public UUID transfer(Acct from, Acct to, long amount) {
-        UUID txn = jdbc.sql("INSERT INTO transactions (type) VALUES ('transfer') RETURNING id").query(UUID.class).single();
+        var ctx = com.payflow.ledger.idempotency.IdempotencyContext.get();
+        UUID txn = jdbc.sql("INSERT INTO transactions (type, merchant_id, idempotency_key) VALUES ('transfer', :m, :k) RETURNING id")
+                .param("m", ctx == null ? null : ctx.merchantId()).param("k", ctx == null ? null : ctx.key())
+                .query(UUID.class).single();
         Instant now = Instant.now().truncatedTo(ChronoUnit.MICROS);
         OffsetDateTime ts = OffsetDateTime.ofInstant(now, ZoneOffset.UTC);
         byte[] fromHash = HashChain.hash(from.hashHead(), from.id(), txn, -amount, now);
