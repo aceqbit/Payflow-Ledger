@@ -38,8 +38,15 @@ Every number below is a Prometheus query over the measure window (first 60 s of 
 | 20261107-171637-hot-N4-200u-PESSIMISTIC-hot | hot-N4 | PESSIMISTIC | hot | 200 | on | 331.3 | 500.00 | 500.00 | 0.0000 | 9.00 | 100.00 / 551.912 | all 0 |
 | 20261107-171852-hot-N16-200u-PESSIMISTIC-hot | hot-N16 | PESSIMISTIC | hot | 200 | on | 330.6 | 500.00 | 500.00 | 0.0000 | 8.99 | 100.00 / 557.049 | all 0 |
 | 20261107-172113-hot-N64-200u-PESSIMISTIC-hot | hot-N64 | PESSIMISTIC | hot | 200 | on | 349.7 | 500.00 | 500.00 | 0.0000 | 8.99 | 100.00 / 524.104 | all 0 |
+| 20261107-180345-matrix-200u-PESSIMISTIC-uniform | matrix | PESSIMISTIC | uniform | 200 | on | 660.6 | 166.02 | 500.00 | 0.0000 | 8.00 | 100.00 / 252.526 | all 0 |
+| 20261107-180617-matrix-200u-OPTIMISTIC-uniform | matrix | OPTIMISTIC | uniform | 200 | on | 764.1 | 164.36 | 500.00 | 0.0043 | 7.02 | 100.00 / 231.132 | all 0 |
+| 20261107-180842-matrix-200u-SERIALIZABLE-uniform | matrix | SERIALIZABLE | uniform | 200 | on | 565.9 | 223.96 | 500.00 | 0.1212 | 7.82 | 100.00 / 277.713 | all 0 |
+| 20261107-181104-matrix-200u-PESSIMISTIC-hot | matrix | PESSIMISTIC | hot | 200 | on | 316.7 | 500.00 | 500.00 | 0.0000 | 8.00 | 100.00 / 556.599 | all 0 |
+| 20261107-181334-matrix-200u-OPTIMISTIC-hot | matrix | OPTIMISTIC | hot | 200 | on | 167.6 | 500.00 | 500.00 | 2.5867 | 14.35 | 100.00 / 193.026 | all 0 |
+| 20261107-181552-matrix-200u-SERIALIZABLE-hot | matrix | SERIALIZABLE | hot | 200 | on | 140.0 | 500.00 | 500.00 | 2.7140 | 14.21 | 100.00 / 206.785 | all 0 |
+| 20261107-181856-chaos-reset_peer | chaos-reset_peer | PESSIMISTIC | uniform | 50 | on | 12.4 | 176.17 | 468.29 | 0.0000 | 8.00 | 100.00 / 131.608 | all 0 |
 
-Telemetry overhead at 200 users, client-side (Gatling) p99 on vs off: -51.9% (on 20261107-170920-tune-T7-after-200u-PESSIMISTIC-uniform: 1177.0 ms, off 20261107-141553-baseline-200u-PESSIMISTIC-uniform: 2448.0 ms); budget is under 5%. Client-side because the telemetry-off profile exports no server metrics.
+Telemetry overhead at 200 users, client-side (Gatling) p99 on vs off: -23.7% (on 20261107-180842-matrix-200u-SERIALIZABLE-uniform: 1869.0 ms, off 20261107-141553-baseline-200u-PESSIMISTIC-uniform: 2448.0 ms); budget is under 5%. Client-side because the telemetry-off profile exports no server metrics.
 
 Client-side (Gatling) view: run_id | p50 ms | p99 ms | req/s | failed
 
@@ -75,6 +82,27 @@ Client-side (Gatling) view: run_id | p50 ms | p99 ms | req/s | failed
 - 20261107-171637-hot-N4-200u-PESSIMISTIC-hot: 563.0 | 1930.0 | 309.3 | 0.0
 - 20261107-171852-hot-N16-200u-PESSIMISTIC-hot: 554.0 | 1882.0 | 316.8 | 0.0
 - 20261107-172113-hot-N64-200u-PESSIMISTIC-hot: 547.0 | 1769.0 | 325.2 | 0.0
+- 20261107-180345-matrix-200u-PESSIMISTIC-uniform: 202.0 | 1666.0 | 681.2 | 0.0
+- 20261107-180617-matrix-200u-OPTIMISTIC-uniform: 186.0 | 1373.0 | 753.3 | 0.0
+- 20261107-180842-matrix-200u-SERIALIZABLE-uniform: 234.0 | 1869.0 | 566.5 | 18.0
+- 20261107-181104-matrix-200u-PESSIMISTIC-hot: 546.0 | 2044.0 | 318.0 | 0.0
+- 20261107-181334-matrix-200u-OPTIMISTIC-hot: 693.0 | 3209.0 | 276.6 | 8962.0
+- 20261107-181552-matrix-200u-SERIALIZABLE-hot: 805.0 | 2620.0 | 243.6 | 8428.0
+
+## Locking matrix (strategy x users x skew)
+
+| skew | users | strategy | TPS | p50 ms | p99 ms | retry ratio | pool acquire mean ms | invariants | run_id |
+|---|---|---|---|---|---|---|---|---|---|
+| hot | 200 | OPTIMISTIC | 167.6 | 500.00 | 500.00 | 2.5867 | 193.026 | all 0 | 20261107-181334-matrix-200u-OPTIMISTIC-hot |
+| hot | 200 | PESSIMISTIC | 316.7 | 500.00 | 500.00 | 0.0000 | 556.599 | all 0 | 20261107-181104-matrix-200u-PESSIMISTIC-hot |
+| hot | 200 | SERIALIZABLE | 140.0 | 500.00 | 500.00 | 2.7140 | 206.785 | all 0 | 20261107-181552-matrix-200u-SERIALIZABLE-hot |
+| uniform | 200 | OPTIMISTIC | 764.1 | 164.36 | 500.00 | 0.0043 | 231.132 | all 0 | 20261107-180617-matrix-200u-OPTIMISTIC-uniform |
+| uniform | 200 | PESSIMISTIC | 660.6 | 166.02 | 500.00 | 0.0000 | 252.526 | all 0 | 20261107-180345-matrix-200u-PESSIMISTIC-uniform |
+| uniform | 200 | SERIALIZABLE | 565.9 | 223.96 | 500.00 | 0.1212 | 277.713 | all 0 | 20261107-180842-matrix-200u-SERIALIZABLE-uniform |
+
+Runs with non-zero invariants: none
+
+![locking trade-off](locking.png)
 
 ## Hot-account buckets (PESSIMISTIC, 1 hot account, TPS vs N)
 
