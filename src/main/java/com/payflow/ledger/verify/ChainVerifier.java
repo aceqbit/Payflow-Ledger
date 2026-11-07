@@ -45,7 +45,7 @@ public class ChainVerifier {
     private final LedgerMetrics metrics;
     private final int parallelism;
 
-    public ChainVerifier(DataSource ds, LedgerMetrics metrics, @Value("${ledger.verify.parallelism:8}") int parallelism) {
+    public ChainVerifier(DataSource ds, LedgerMetrics metrics, @Value("${ledger.verify.parallelism:#{T(java.lang.Runtime).getRuntime().availableProcessors()}}") int parallelism) {
         this.ds = ds;
         this.metrics = metrics;
         this.parallelism = Math.max(1, parallelism);

@@ -43,15 +43,22 @@ BEGIN
     FOR acc IN SELECT account_id FROM ledger_entries GROUP BY account_id HAVING count(*) >= 30 ORDER BY random() LIMIT (edits + deletes + reorders) LOOP
         n := n + 1;
         kind := CASE WHEN n <= edits THEN 'edit' WHEN n <= edits + deletes THEN 'delete' ELSE 'reorder' END;
-        SELECT id, created_at INTO e1, c1 FROM ledger_entries WHERE account_id = acc ORDER BY created_at, id OFFSET 10 LIMIT 1;
-        IF kind = 'edit' THEN
-            UPDATE ledger_entries SET amount_minor = amount_minor + 1 WHERE id = e1;
-        ELSIF kind = 'delete' THEN
-            DELETE FROM ledger_entries WHERE id = e1;
-        ELSE
-            SELECT id, created_at INTO e2, c2 FROM ledger_entries WHERE account_id = acc ORDER BY created_at, id OFFSET 11 LIMIT 1;
+        IF kind = 'reorder' THEN
+            -- pick neighbours with DIFFERENT timestamps: swapping equal timestamps would change nothing
+            SELECT x.id, x.created_at, x.nid, x.nts INTO e1, c1, e2, c2 FROM (
+                SELECT id, created_at, lead(id) OVER w AS nid, lead(created_at) OVER w AS nts
+                FROM ledger_entries WHERE account_id = acc WINDOW w AS (ORDER BY created_at, id)
+                ORDER BY created_at, id OFFSET 10) x
+            WHERE x.nts <> x.created_at ORDER BY x.created_at, x.id LIMIT 1;
             UPDATE ledger_entries SET created_at = c2 WHERE id = e1;
             UPDATE ledger_entries SET created_at = c1 WHERE id = e2;
+        ELSE
+            SELECT id INTO e1 FROM ledger_entries WHERE account_id = acc ORDER BY created_at, id OFFSET 10 LIMIT 1;
+            IF kind = 'edit' THEN
+                UPDATE ledger_entries SET amount_minor = amount_minor + CASE WHEN amount_minor = -1 THEN 2 ELSE 1 END WHERE id = e1;
+            ELSE
+                DELETE FROM ledger_entries WHERE id = e1;
+            END IF;
         END IF;
         INSERT INTO tamper_log (kind, account_id, entry_id) VALUES (kind, acc, e1);
     END LOOP;

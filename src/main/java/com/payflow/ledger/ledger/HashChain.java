@@ -1,6 +1,5 @@
 package com.payflow.ledger.ledger;
 
-import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
@@ -17,18 +16,33 @@ public final class HashChain {
 
     private HashChain() {}
 
-    public static byte[] hash(byte[] prevHash, UUID accountId, UUID txnId, long amountMinor, long createdAtEpochMicros) {
-        if (prevHash.length != HASH_LEN) throw new IllegalArgumentException("prev_hash must be 32 bytes");
-        ByteBuffer b = ByteBuffer.allocate(HASH_LEN + 16 + 16 + 8 + 8); // big-endian by default
-        b.put(prevHash);
-        b.putLong(accountId.getMostSignificantBits()).putLong(accountId.getLeastSignificantBits());
-        b.putLong(txnId.getMostSignificantBits()).putLong(txnId.getLeastSignificantBits());
-        b.putLong(amountMinor);
-        b.putLong(createdAtEpochMicros);
+    /** Per-thread digest and 80-byte input buffer: the verifier calls this a million times, so nothing is allocated but the result. */
+    private static final ThreadLocal<MessageDigest> DIGEST = ThreadLocal.withInitial(() -> {
         try {
-            return MessageDigest.getInstance("SHA-256").digest(b.array());
+            return MessageDigest.getInstance("SHA-256");
         } catch (NoSuchAlgorithmException e) {
             throw new IllegalStateException(e);
+        }
+    });
+    private static final ThreadLocal<byte[]> BUF = ThreadLocal.withInitial(() -> new byte[HASH_LEN + 16 + 16 + 8 + 8]);
+
+    public static byte[] hash(byte[] prevHash, UUID accountId, UUID txnId, long amountMinor, long createdAtEpochMicros) {
+        if (prevHash.length != HASH_LEN) throw new IllegalArgumentException("prev_hash must be 32 bytes");
+        byte[] b = BUF.get();
+        System.arraycopy(prevHash, 0, b, 0, HASH_LEN);
+        putLong(b, 32, accountId.getMostSignificantBits());
+        putLong(b, 40, accountId.getLeastSignificantBits());
+        putLong(b, 48, txnId.getMostSignificantBits());
+        putLong(b, 56, txnId.getLeastSignificantBits());
+        putLong(b, 64, amountMinor);
+        putLong(b, 72, createdAtEpochMicros);
+        return DIGEST.get().digest(b); // big-endian fixed encoding, identical to ledger_entry_hash() in SQL
+    }
+
+    private static void putLong(byte[] b, int off, long v) {
+        for (int i = 7; i >= 0; i--) {
+            b[off + i] = (byte) v;
+            v >>>= 8;
         }
     }
 
