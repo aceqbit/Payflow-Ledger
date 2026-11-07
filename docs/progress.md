@@ -1,2 +1,11 @@
 # Progress
 - P1-01: Maven/Boot 4.0.9 scaffold, compose (postgres18, toxiproxy, app), Makefile. Check: PASS natively (jar boots, /actuator/health UP; Docker unavailable, local PG18.4 zip used instead)
+- P1-04: Flyway V1-V5 (accounts, payments, transactions+ledger_entries, idempotency_keys, outbox). Check: PASS, SchemaConstraintsIT 14/14 on native PG 18.4.
+  - accounts CHECK balance>=0 unless system -> negativeBalanceRejectedForNormalAccount, systemAccountMayGoNegative
+  - currency char(3) -> currencyMustBeThreeChars
+  - payments captured<=authorized / refunded<=captured -> capturedCannotExceedAuthorized, refundedCannotExceedCaptured, validPaymentAccepted
+  - deferred sum-to-zero trigger -> unbalancedTransactionRejectedAtCommit, balancedTransactionCommits
+  - amount<>0 -> zeroAmountEntryRejected; append-only trigger -> entriesAreAppendOnly; FK -> entryNeedsExistingAccount
+  - idempotency PK -> idempotencyKeyIsUniquePerMerchant; outbox contract -> outboxDefaultsFollowContract, outboxSeqUniquePerAggregate
+  - DEVIATION: idempotency_keys is NOT day-partitioned (Postgres needs partition key in the PK, which would break global key uniqueness across midnight). Retention by expires_at.
+  - DEVIATION: tests use a native Postgres via TestDb (env PG_TEST_ADMIN_URL) instead of Testcontainers because Docker is unavailable here.

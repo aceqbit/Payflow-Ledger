@@ -7,7 +7,7 @@ spring:
     password: ${DB_PASSWORD:ledger}
     hikari.maximum-pool-size: ${DB_POOL:16}
   jpa.hibernate.ddl-auto: none
-  flyway.enabled: false   # enabled from P1-04 when migrations exist
+  flyway.enabled: true
 management:
   endpoints.web.exposure.include: health,info,prometheus
   endpoint.health.probes.enabled: true
