@@ -1,5 +1,8 @@
 COMPOSE = docker compose -f deploy/docker-compose.yml
-.PHONY: up down test it bench chaos tamper report clean
+.PHONY: up down test it bench chaos tamper report seed clean
+
+seed:
+	bash scripts/seed.sh
 
 up:
 	mvn -q -DskipTests package jib:dockerBuild
@@ -15,7 +18,7 @@ it:
 	mvn -q verify
 
 bench:
-	@echo TODO; exit 1
+	bash scripts/bench.sh
 
 chaos:
 	@echo TODO; exit 1
@@ -24,7 +27,7 @@ tamper:
 	@echo TODO; exit 1
 
 report:
-	@echo TODO; exit 1
+	python perf/report.py
 
 clean:
 	mvn -q clean

@@ -6,3 +6,5 @@ perf/results/
 perf/target/
 .bench-state
 *.log
+perf/results/
+docs/results.tmp
