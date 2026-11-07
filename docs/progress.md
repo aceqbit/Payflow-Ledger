@@ -10,3 +10,4 @@
   - DEVIATION: idempotency_keys is NOT day-partitioned (Postgres needs partition key in the PK, which would break global key uniqueness across midnight). Retention by expires_at.
   - DEVIATION: tests use a native Postgres via TestDb (env PG_TEST_ADMIN_URL) instead of Testcontainers because Docker is unavailable here.
 - P1-05: HashChain (Java) + V6 ledger_entry_hash() (SQL). Check: PASS, mvn test -Dtest=HashChain* 5 tests, jqwik 10000 tries Java==SQL, independent fixed vector from raw-hex sha256 in psql.
+- P1-06: POST /v1/transfers (idempotency guard, PESSIMISTIC strategy, outbox w/ traceparent, LedgerMetrics, JWT merchant scoping, problem details). Check: PARTIAL - TransferIT 9/9 green on native PG (happy, replay, 422, 409+replay, traceparent, 8 round-trips, labels, 404 cross-merchant, 401). Tempo/Prometheus part not runnable here (no Docker). Round-trips counted via CountingJdbc wrapper, not datasource-micrometer.
