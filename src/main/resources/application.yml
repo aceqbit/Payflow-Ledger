@@ -1,0 +1,13 @@
+spring:
+  application.name: payflow-ledger
+  threads.virtual.enabled: true
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/ledger}
+    username: ${DB_USER:ledger}
+    password: ${DB_PASSWORD:ledger}
+    hikari.maximum-pool-size: ${DB_POOL:16}
+  jpa.hibernate.ddl-auto: none
+  flyway.enabled: false   # enabled from P1-04 when migrations exist
+management:
+  endpoints.web.exposure.include: health,info,prometheus
+  endpoint.health.probes.enabled: true
