@@ -20,8 +20,6 @@ import java.util.TreeMap;
 /** One Postgres transaction per request: idempotency row, entries, balances, hash heads, outbox, stored response. */
 @Service
 public class TransferService {
-    public record ApiResult(int status, String body) {}
-
     private final TransferStrategy strategy;
     private final TransactionTemplate tx;
     private final IdempotencyGuard guard;

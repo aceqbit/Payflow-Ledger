@@ -31,19 +31,11 @@ public class PessimisticTransferStrategy implements TransferStrategy {
         jdbc.sql("SET LOCAL lock_timeout = '2s'").update();
 
         long t0 = System.nanoTime();
-        List<Posting.Acct> locked = jdbc.sql("""
-                SELECT id, currency, balance_minor, is_system, hash_head FROM accounts
-                WHERE id IN (:a, :b) AND merchant_id = :m ORDER BY id FOR UPDATE""")
-                .param("a", cmd.fromAccountId()).param("b", cmd.toAccountId()).param("m", cmd.merchantId())
-                .query((rs, n) -> new Posting.Acct(rs.getObject("id", java.util.UUID.class), rs.getString("currency"),
-                        rs.getLong("balance_minor"), rs.getBoolean("is_system"), rs.getBytes("hash_head")))
-                .list();
+        List<Posting.Acct> locked = posting.lockPair(cmd.merchantId(), cmd.fromAccountId(), cmd.toAccountId());
         metrics.lockWait(NAME, Duration.ofNanos(System.nanoTime() - t0));
 
-        Posting.Acct from = locked.stream().filter(a -> a.id().equals(cmd.fromAccountId())).findFirst()
-                .orElseThrow(() -> new LedgerException(404, "ACCOUNT_NOT_FOUND", "source account not found"));
-        Posting.Acct to = locked.stream().filter(a -> a.id().equals(cmd.toAccountId())).findFirst()
-                .orElseThrow(() -> new LedgerException(404, "ACCOUNT_NOT_FOUND", "destination account not found"));
+        Posting.Acct from = Posting.pick(locked, cmd.fromAccountId(), "source");
+        Posting.Acct to = Posting.pick(locked, cmd.toAccountId(), "destination");
 
         if (!from.currency().trim().equals(cmd.currency()) || !to.currency().trim().equals(cmd.currency())) {
             throw new LedgerException(400, "CURRENCY_MISMATCH", "accounts and transfer must share one currency");

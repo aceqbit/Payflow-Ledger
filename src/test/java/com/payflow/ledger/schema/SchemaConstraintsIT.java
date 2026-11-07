@@ -49,6 +49,14 @@ class SchemaConstraintsIT {
         }
     }
 
+    static String pay(String state, long auth, long cap, long ref) throws Exception {
+        try (Connection c = db.connect()) {
+            UUID a = account(c, 0, true), b = account(c, 0, true);
+            return "INSERT INTO payments (merchant_id,currency,state,authorized,captured,refunded,payer_account_id,payee_account_id,amount_minor) VALUES ('m','USD','"
+                    + state + "'," + auth + "," + cap + "," + ref + ",'" + a + "','" + b + "',100)";
+        }
+    }
+
     @Test void negativeBalanceRejectedForNormalAccount() throws Exception {
         try (Connection c = db.connect()) { assertEquals("23514", sqlState(() -> account(c, -1, false))); }
     }
@@ -65,22 +73,19 @@ class SchemaConstraintsIT {
 
     @Test void capturedCannotExceedAuthorized() throws Exception {
         try (Connection c = db.connect(); Statement s = c.createStatement()) {
-            assertEquals("23514", sqlState(() -> s.execute(
-                    "INSERT INTO payments (merchant_id,currency,state,authorized,captured) VALUES ('m','USD','CAPTURED',100,101)")));
+            assertEquals("23514", sqlState(() -> s.execute(pay("CAPTURED", 100, 101, 0))));
         }
     }
 
     @Test void refundedCannotExceedCaptured() throws Exception {
         try (Connection c = db.connect(); Statement s = c.createStatement()) {
-            assertEquals("23514", sqlState(() -> s.execute(
-                    "INSERT INTO payments (merchant_id,currency,state,authorized,captured,refunded) VALUES ('m','USD','REFUNDED',100,50,60)")));
+            assertEquals("23514", sqlState(() -> s.execute(pay("REFUNDED", 100, 50, 60))));
         }
     }
 
     @Test void validPaymentAccepted() throws Exception {
         try (Connection c = db.connect(); Statement s = c.createStatement()) {
-            assertEquals(1, s.executeUpdate(
-                    "INSERT INTO payments (merchant_id,currency,state,authorized,captured,refunded) VALUES ('m','USD','PARTIALLY_REFUNDED',100,50,10)"));
+            assertEquals(1, s.executeUpdate(pay("PARTIALLY_REFUNDED", 100, 50, 10)));
         }
     }
 

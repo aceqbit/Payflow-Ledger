@@ -6,6 +6,7 @@ import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
 import java.util.UUID;
 
 /** Writes a balanced pair of entries, advances both hash chains and updates both balances. */
@@ -17,6 +18,22 @@ public class Posting {
 
     public Posting(CountingJdbc jdbc) {
         this.jdbc = jdbc;
+    }
+
+    /** SELECT ... FOR UPDATE on both accounts in ascending id order, scoped by merchant. */
+    public List<Acct> lockPair(String merchantId, UUID a, UUID b) {
+        return jdbc.sql("""
+                SELECT id, currency, balance_minor, is_system, hash_head FROM accounts
+                WHERE id IN (:a, :b) AND merchant_id = :m ORDER BY id FOR UPDATE""")
+                .param("a", a).param("b", b).param("m", merchantId)
+                .query((rs, n) -> new Acct(rs.getObject("id", UUID.class), rs.getString("currency"),
+                        rs.getLong("balance_minor"), rs.getBoolean("is_system"), rs.getBytes("hash_head")))
+                .list();
+    }
+
+    public static Acct pick(List<Acct> locked, UUID id, String what) {
+        return locked.stream().filter(x -> x.id().equals(id)).findFirst()
+                .orElseThrow(() -> new LedgerException(404, "ACCOUNT_NOT_FOUND", what + " account not found"));
     }
 
     /** Caller holds the locks (or runs at an isolation that protects the read). Returns the transaction id. */
