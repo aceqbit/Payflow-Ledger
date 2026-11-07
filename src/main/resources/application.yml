@@ -5,12 +5,16 @@ spring:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/ledger}
     username: ${DB_USER:ledger}
     password: ${DB_PASSWORD:ledger}
-    hikari.maximum-pool-size: ${DB_POOL:16}
+    hikari.maximum-pool-size: ${DB_POOL:32}   # T2: 32 beat 16 in the tuning loop
   jpa.hibernate.ddl-auto: none
   flyway.enabled: true
   lifecycle.timeout-per-shutdown-phase: 25s
 
 server.shutdown: graceful
+
+ledger:
+  # T4: the PESSIMISTIC transfer runs as one SQL function call (1 round trip instead of 8). Set false to use the Java path.
+  transfer.sql-function: true
 
 logging.structured.format.console: logstash
 

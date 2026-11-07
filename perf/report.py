@@ -133,6 +133,7 @@ def write_md(rows, spec):
     for r in rows:
         if r.get("client_p99_ms") is not None:
             lines.append(f"- {r['run_id']}: {r['client_p50_ms']} | {r['client_p99_ms']} | {fmt(r['client_rps'], 1)} | {r['client_failed']}")
+    lines += extra_sections(rows)
     with open(os.path.join(DOCS, "results.md"), "w") as f:
         f.write("\n".join(lines) + "\n")
 

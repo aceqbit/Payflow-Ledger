@@ -1,6 +1,6 @@
 -- Turns an account into a hot account with n buckets by moving its balance into the buckets through real,
--- hash-chained entries (so verifiers stay green). make_hot_all(n) converts the first account of every merchant,
--- which is exactly the "hot" account the Gatling skew generator targets (index 0 of accounts.csv).
+-- hash-chained entries (so verifiers stay green). make_hot_all(n) converts the first account of merchant-001, which is
+-- exactly the single hot account the Gatling skew generator targets (50% of all credits, index 0 of merchant-001).
 CREATE OR REPLACE FUNCTION make_hot(p uuid, n int) RETURNS void AS $$
 DECLARE
     r accounts%ROWTYPE;
@@ -29,7 +29,7 @@ END $$ LANGUAGE plpgsql;
 CREATE OR REPLACE FUNCTION make_hot_all(n int) RETURNS int AS $$
 DECLARE c int := 0; rec record;
 BEGIN
-    FOR rec IN SELECT DISTINCT ON (merchant_id) id FROM accounts WHERE NOT is_system AND parent_id IS NULL ORDER BY merchant_id, id LOOP
+    FOR rec IN SELECT id FROM accounts WHERE merchant_id = 'merchant-001' AND NOT is_system AND parent_id IS NULL ORDER BY id LIMIT 1 LOOP
         PERFORM make_hot(rec.id, n);
         c := c + 1;
     END LOOP;

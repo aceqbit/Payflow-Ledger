@@ -77,21 +77,21 @@ public class TransferSimulation extends Simulation {
         }
     }
 
-    /** Index into a merchant's account list under the selected skew. Zipf 80/20: 80% of picks hit the first 20%. */
+    /** Skew over the WHOLE population (merchant index, then account index). zipf: 80% of picks hit the first 20%; hot: 50% of all credits hit one account. */
     static int pick(int n, Random r) {
         return switch (DIST) {
             case "zipf" -> r.nextDouble() < 0.8 ? r.nextInt(Math.max(1, n / 5)) : r.nextInt(n);
-            case "hot" -> r.nextDouble() < 0.5 ? 0 : r.nextInt(n);
             default -> r.nextInt(n);
         };
     }
 
     static Map<String, Object> next() {
         Random r = ThreadLocalRandom.current();
-        String m = MERCHANTS.get(r.nextInt(MERCHANTS.size()));
+        boolean hot = DIST.equals("hot") && r.nextDouble() < 0.5;
+        String m = hot ? MERCHANTS.get(0) : MERCHANTS.get(pick(MERCHANTS.size(), r));
         List<String> accts = ACCOUNTS.get(m);
-        int from = r.nextInt(accts.size()), to = pick(accts.size(), r);
-        if (to == from) to = (to + 1) % accts.size();
+        int from = r.nextInt(accts.size()), to = hot ? 0 : pick(accts.size(), r);
+        if (to == from) from = (from + 1) % accts.size();
         Map<String, Object> s = new HashMap<>();
         s.put("token", TOKENS.get(m));
         s.put("body", "{\"fromAccountId\":\"" + accts.get(from) + "\",\"toAccountId\":\"" + accts.get(to)
