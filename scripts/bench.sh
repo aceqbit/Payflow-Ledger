@@ -3,6 +3,7 @@
 # make bench MATRIX=smoke      -> 2 short runs (the full 27-run matrix lives in bench-matrix.sh, added in P2-03).
 set -euo pipefail
 cd "$(dirname "$0")/.."
+if [ -n "${MATRIX:-}" ]; then exec bash scripts/bench-matrix.sh; fi
 SCENARIO=${SCENARIO:-baseline}
 DURATION=${DURATION:-300}
 for u in 50 200 500; do

@@ -1,0 +1,50 @@
+# Same alerts as grafana/provisioning/alerting/ledger-alerts.yml, as Prometheus rules so promtool can unit-test them
+# (deploy/observability/prometheus/tests). Expressions are exactly the plan's section 6 table.
+groups:
+  - name: ledger-alerts
+    rules:
+      - alert: InvariantViolation
+        expr: max(ledger_invariant_violations) > 0
+        for: 0m
+        labels: {severity: critical}
+        annotations: {summary: "A money invariant is violated"}
+      - alert: InvariantCheckerStale
+        expr: time() - max(ledger_invariant_last_run_timestamp_seconds) > 120
+        for: 2m
+        labels: {severity: critical}
+        annotations: {summary: "The invariant checker has not run for 2 minutes"}
+      - alert: ChainBreakOutsideTamperTest
+        expr: max(ledger_chain_breaks{scenario!="tamper"}) > 0
+        for: 0m
+        labels: {severity: critical}
+        annotations: {summary: "Hash chain break outside a tamper test"}
+      - alert: AvailabilityFastBurn
+        expr: (1 - ledger:sli_availability:1h) > 14.4 * 0.001 and (1 - ledger:sli_availability:5m) > 14.4 * 0.001
+        for: 2m
+        labels: {severity: page}
+        annotations: {summary: "Availability error budget burning 14.4x"}
+      - alert: AvailabilitySlowBurn
+        expr: (1 - ledger:sli_availability:6h) > 6 * 0.001 and (1 - ledger:sli_availability:30m) > 6 * 0.001
+        for: 15m
+        labels: {severity: ticket}
+        annotations: {summary: "Availability error budget burning 6x"}
+      - alert: LatencyFastBurn
+        expr: (1 - ledger:sli_latency_50ms:1h) > 14.4 * 0.01 and (1 - ledger:sli_latency_50ms:5m) > 14.4 * 0.01
+        for: 2m
+        labels: {severity: page}
+        annotations: {summary: "Latency error budget burning 14.4x"}
+      - alert: Deadlocks
+        expr: increase(postgresql_deadlocks_total[5m]) > 0
+        for: 0m
+        labels: {severity: warning}
+        annotations: {summary: "Postgres reported a deadlock"}
+      - alert: PoolStarved
+        expr: max(hikaricp_connections_pending) > 0
+        for: 1m
+        labels: {severity: warning}
+        annotations: {summary: "Connections are waiting for the pool"}
+      - alert: ReplicationSlotLag
+        expr: max(pg_replication_slot_lag_bytes) > 1e9
+        for: 5m
+        labels: {severity: warning}
+        annotations: {summary: "A replication slot holds more than 1 GB of WAL"}

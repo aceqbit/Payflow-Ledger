@@ -53,7 +53,7 @@ class VerifierIT {
     }
 
     InvariantChecker inv() { return new InvariantChecker(JdbcClient.create(ds), metrics); }
-    ChainVerifier chain() { return new ChainVerifier(ds, metrics); }
+    ChainVerifier chain() { return new ChainVerifier(ds, metrics, 4); }
 
     @Test void cleanLedgerHasNoViolationsAndNoBreaks() {
         var r = inv().run();

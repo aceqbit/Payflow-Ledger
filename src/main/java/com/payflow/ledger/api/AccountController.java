@@ -33,7 +33,10 @@ public class AccountController {
 
     @GetMapping("/v1/accounts/{id}/balance")
     Balance balance(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id) {
-        return jdbc.sql("SELECT id, currency, balance_minor FROM accounts WHERE id = :id AND merchant_id = :m")
+        return jdbc.sql("""
+                SELECT a.id, a.currency,
+                       a.balance_minor + COALESCE((SELECT sum(b.balance_minor) FROM accounts b WHERE b.parent_id = a.id), 0)
+                FROM accounts a WHERE a.id = :id AND a.merchant_id = :m""")
                 .param("id", id).param("m", Merchants.of(jwt))
                 .query((rs, n) -> new Balance(rs.getObject(1, UUID.class), rs.getString(2).trim(), rs.getLong(3)))
                 .optional().orElseThrow(() -> new LedgerException(404, "ACCOUNT_NOT_FOUND", "account not found"));

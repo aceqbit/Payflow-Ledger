@@ -40,7 +40,7 @@ public class OutboxWriter {
     }
 
     /** W3C trace context of the current request span, or null when there is none. */
-    static String traceparent() {
+    public static String traceparent() {
         SpanContext c = Span.current().getSpanContext();
         if (!c.isValid()) return null;
         return "00-" + c.getTraceId() + "-" + c.getSpanId() + "-" + c.getTraceFlags().asHex();

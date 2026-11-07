@@ -1,0 +1,37 @@
+flowchart LR
+    client([Merchant client]) -- "POST /v1/transfers<br/>JWT + Idempotency-Key" --> api
+
+    subgraph app [payflow-ledger: Java 25, Spring Boot 4, virtual threads]
+        api[api<br/>controllers, problem details] --> svc[TransferService / PaymentService<br/>retry policy, 3 strategies]
+        svc --> guard[IdempotencyGuard]
+        svc --> post[Posting + HashChain]
+        svc --> outboxw[OutboxWriter<br/>+ traceparent]
+        verify[InvariantChecker + ChainVerifier<br/>every 60 s]
+    end
+
+    subgraph pg [PostgreSQL 18: one transaction per request]
+        idem[(idempotency_keys)]
+        acc[(accounts)]
+        ent[(ledger_entries<br/>append-only, sum 0)]
+        pay[(payments)]
+        ob[(outbox)]
+    end
+
+    guard --> idem
+    post --> acc
+    post --> ent
+    svc --> pay
+    outboxw --> ob
+    verify -. reads .-> acc
+    verify -. reads .-> ent
+
+    ob -- "polling relay or Debezium CDC" --> events([PayFlow Events])
+
+    app -- "OTLP metrics, traces, logs" --> otel[OTel Collector<br/>tail sampling]
+    pg -- "postgresql + sqlquery receivers" --> otel
+    otel --> prom[(Prometheus 3)]
+    otel --> tempo[(Tempo)]
+    otel --> loki[(Loki)]
+    prom --> grafana{{Grafana: 5 dashboards, 9 alerts}}
+    tempo --> grafana
+    loki --> grafana

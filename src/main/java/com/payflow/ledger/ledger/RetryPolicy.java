@@ -12,6 +12,14 @@ public class RetryPolicy {
     private static final long BASE_NANOS = 2_000_000L;
     private static final long CAP_NANOS = 100_000_000L;
 
+    /** SQLSTATE of the nearest SQLException in the cause chain, or null. */
+    public static String sqlStateOf(Throwable t) {
+        for (Throwable c = t; c != null; c = c.getCause()) {
+            if (c instanceof SQLException s && s.getSQLState() != null) return s.getSQLState();
+        }
+        return null;
+    }
+
     /** Retry reason label (version_conflict|serialization_failure|deadlock|lock_timeout) or null when not retryable. */
     public String reasonOf(Throwable t) {
         if (t instanceof RetryableConflict c) return c.reason();

@@ -7,6 +7,8 @@ source scripts/env.sh
 
 SCENARIO=${1:?scenario}; USERS=${2:?users}; STRATEGY=${3:-PESSIMISTIC}; DIST=${4:-uniform}; DURATION=${5:-300}
 EXTRA_PROFILE=${6:-}
+WARMUP=${WARMUP:-60}
+[ "$DURATION" -lt 120 ] && WARMUP=$((DURATION / 3))
 export SCENARIO
 export RUN_ID="$(date +%Y%m%d-%H%M%S)-${SCENARIO}-${USERS}u-${STRATEGY}-${DIST}"
 PROFILES="$APP_PROFILES${EXTRA_PROFILE:+,$EXTRA_PROFILE}"
@@ -18,6 +20,10 @@ echo "== $RUN_ID (profiles: ${PROFILES:-none})"
 # 1. fresh DB from template (seconds, not minutes)
 $PSQL -d postgres -qc "DROP DATABASE IF EXISTS ledger_run WITH (FORCE)"
 $PSQL -d postgres -qc "CREATE DATABASE ledger_run TEMPLATE ledger_seed"
+
+if [ -n "${HOT_BUCKETS:-}" ]; then
+  $PSQL -d ledger_run -q -f perf/hot.sql -c "SELECT make_hot_all($HOT_BUCKETS)" > /dev/null
+fi
 
 # 2. app with run tags
 DB_URL="jdbc:postgresql://$PGHOST:$PGPORT/ledger_run" \
@@ -43,6 +49,6 @@ VERIFIED=$(date +%s)
 
 cat > "$OUT/$RUN_ID.json" <<EOF
 {"run_id":"$RUN_ID","scenario":"$SCENARIO","users":$USERS,"strategy":"$STRATEGY","dist":"$DIST","duration_s":$DURATION,
- "warmup_s":60,"start_epoch":$START,"end_epoch":$END,"verified_epoch":$VERIFIED,"profiles":"${PROFILES}"}
+ "warmup_s":$WARMUP,"start_epoch":$START,"end_epoch":$END,"verified_epoch":$VERIFIED,"profiles":"${PROFILES}","note":"${RUN_NOTE:-}","git":"$(git rev-parse --short HEAD 2>/dev/null)","hot_buckets":${HOT_BUCKETS:-0}}
 EOF
 echo "done: $RUN_ID"

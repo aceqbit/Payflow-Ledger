@@ -137,6 +137,88 @@ def write_md(rows, spec):
         f.write("\n".join(lines) + "\n")
 
 
+def inv_ok(r):
+    return all(v == 0 for v in r["invariants"].values())
+
+
+def matrix_section(rows):
+    m = [r for r in rows if r["scenario"] == "matrix"]
+    if not m:
+        return []
+    out = ["", "## Locking matrix (strategy x users x skew)", "",
+           "| skew | users | strategy | TPS | p50 ms | p99 ms | retry ratio | pool acquire mean ms | invariants | run_id |", "|---|---|---|---|---|---|---|---|---|---|"]
+    for r in sorted(m, key=lambda r: (r["dist"], r["users"], r["strategy"])):
+        out.append(f"| {r['dist']} | {r['users']} | {r['strategy']} | {fmt(r['tps'])} | {fmt(r['p50_ms'], 2)} | {fmt(r['p99_ms'], 2)} | "
+                   f"{fmt(r['retry_ratio'], 4)} | {fmt(r['pool_acquire_mean_ms'], 3)} | {'all 0' if inv_ok(r) else 'NON-ZERO'} | {r['run_id']} |")
+    bad = [r["run_id"] for r in m if not inv_ok(r)]
+    out += ["", "Runs with non-zero invariants: " + (", ".join(bad) if bad else "none")]
+    try:
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+        fig, ax = plt.subplots(2, 3, figsize=(13, 7), sharex=True)
+        for c, dist in enumerate(["uniform", "zipf", "hot"]):
+            for strat in ["PESSIMISTIC", "OPTIMISTIC", "SERIALIZABLE"]:
+                pts = sorted((r["users"], r["tps"], r["p99_ms"]) for r in m if r["dist"] == dist and r["strategy"] == strat and r["tps"] is not None)
+                if pts:
+                    ax[0][c].plot([p[0] for p in pts], [p[1] for p in pts], marker="o", label=strat)
+                    ax[1][c].plot([p[0] for p in pts], [p[2] for p in pts], marker="o", label=strat)
+            ax[0][c].set_title(dist); ax[1][c].set_xlabel("concurrent users")
+        ax[0][0].set_ylabel("TPS"); ax[1][0].set_ylabel("p99 ms"); ax[0][0].legend()
+        fig.tight_layout(); fig.savefig(os.path.join(DOCS, "locking.png"), dpi=110); plt.close(fig)
+        out += ["", "![locking trade-off](locking.png)"]
+    except ImportError:
+        out += ["", "(matplotlib not installed: locking.png not rendered)"]
+    return out
+
+
+def hot_section(rows):
+    h = [r for r in rows if r["scenario"].startswith("hot-N")]
+    if not h:
+        return []
+    out = ["", "## Hot-account buckets (PESSIMISTIC, 1 hot account, TPS vs N)", "", "| N | users | TPS | p99 ms | lock wait ok | invariants | run_id |", "|---|---|---|---|---|---|---|"]
+    byn = {}
+    for r in sorted(h, key=lambda r: int(r["scenario"].split("N")[-1])):
+        n = int(r["scenario"].split("N")[-1])
+        byn[n] = r
+        out.append(f"| {n} | {r['users']} | {fmt(r['tps'])} | {fmt(r['p99_ms'], 2)} | - | {'all 0' if inv_ok(r) else 'NON-ZERO'} | {r['run_id']} |")
+    if 1 in byn and 16 in byn and byn[1]["tps"]:
+        out += ["", f"TPS at N=16 is {byn[16]['tps'] / byn[1]['tps']:.2f}x N=1 (target: 5x or more)."]
+    return out
+
+
+def tuning_section(rows):
+    steps = {}
+    for r in rows:
+        if r["scenario"].startswith("tune-"):
+            _, step, phase = r["scenario"].split("-", 2)
+            steps.setdefault(step, {}).setdefault(phase, {})[r["dist"]] = r
+    if not steps:
+        return []
+    out = ["", "## Tuning loop", "",
+           "Rule: keep a change only if every invariant stays 0 and TPS or p99 improves by 5% or more without the other getting more than 5% worse.", "",
+           "| step | change | scenario | TPS before -> after | p99 ms before -> after | round-trips before -> after | decision | before run | after run |",
+           "|---|---|---|---|---|---|---|---|---|"]
+    for step in sorted(steps):
+        verdicts = []
+        for dist in ("uniform", "hot"):
+            b, a = steps[step].get("before", {}).get(dist), steps[step].get("after", {}).get(dist)
+            if not b or not a or not b["tps"] or not a["p99_ms"] or not b["p99_ms"]:
+                continue
+            tps_gain = (a["tps"] - b["tps"]) / b["tps"] * 100
+            p99_gain = (b["p99_ms"] - a["p99_ms"]) / b["p99_ms"] * 100
+            keep = inv_ok(a) and ((tps_gain >= 5 and p99_gain > -5) or (p99_gain >= 5 and tps_gain > -5))
+            verdicts.append(keep)
+            out.append(f"| {step} | {a.get('note', '')} | {dist} | {fmt(b['tps'])} -> {fmt(a['tps'])} ({tps_gain:+.1f}%) | "
+                       f"{fmt(b['p99_ms'], 2)} -> {fmt(a['p99_ms'], 2)} ({-p99_gain:+.1f}%) | {fmt(b['roundtrips_mean'], 2)} -> {fmt(a['roundtrips_mean'], 2)} | "
+                       f"{'kept' if keep else 'reverted'} | {b['run_id']} | {a['run_id']} |")
+    return out
+
+
+def extra_sections(rows):
+    return matrix_section(rows) + hot_section(rows) + tuning_section(rows)
+
+
 def main():
     metas = []
     wanted = set(sys.argv[1:])

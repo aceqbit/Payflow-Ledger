@@ -8,6 +8,9 @@ spring:
     hikari.maximum-pool-size: ${DB_POOL:16}
   jpa.hibernate.ddl-auto: none
   flyway.enabled: true
+  lifecycle.timeout-per-shutdown-phase: 25s
+
+server.shutdown: graceful
 
 logging.structured.format.console: logstash
 

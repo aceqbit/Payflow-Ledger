@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "payflow.name" . }}
+  labels: {app: {{ include "payflow.name" . }}}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels: {app: {{ include "payflow.name" . }}}
+  template:
+    metadata:
+      labels: {app: {{ include "payflow.name" . }}}
+    spec:
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: ledger
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports: [{name: http, containerPort: 8080}]
+          envFrom:
+            - configMapRef: {name: {{ include "payflow.name" . }}}
+            - secretRef: {name: {{ include "payflow.secretName" . }}}
+          readinessProbe:
+            httpGet: {path: /actuator/health/readiness, port: http}
+            initialDelaySeconds: 15
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: {path: /actuator/health/liveness, port: http}
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          lifecycle:
+            preStop:
+              exec: {command: ["sleep", "5"]}
+          resources: {{- toYaml .Values.resources | nindent 12 }}

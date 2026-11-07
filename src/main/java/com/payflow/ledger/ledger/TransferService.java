@@ -31,10 +31,15 @@ public class TransferService {
     private final LedgerMetrics metrics;
     private final ObjectMapper json;
     private final RetryPolicy retry;
+    private final CountingJdbc jdbc;
+    private final boolean sqlFunction;
+    private final boolean outboxDelete;
 
     public TransferService(List<TransferStrategy> strategies, PlatformTransactionManager tm, IdempotencyGuard guard,
-                           OutboxWriter outbox, LedgerMetrics metrics, ObjectMapper json, RetryPolicy retry,
-                           @Value("${ledger.strategy:PESSIMISTIC}") String strategyName) {
+                           OutboxWriter outbox, LedgerMetrics metrics, ObjectMapper json, RetryPolicy retry, CountingJdbc jdbc,
+                           @Value("${ledger.strategy:PESSIMISTIC}") String strategyName,
+                           @Value("${ledger.transfer.sql-function:false}") boolean sqlFunction,
+                           @Value("${ledger.outbox.mode:retain}") String outboxMode) {
         this.strategy = strategies.stream().filter(s -> s.name().equalsIgnoreCase(strategyName)).findFirst()
                 .orElseThrow(() -> new IllegalStateException("unknown ledger.strategy " + strategyName));
         this.tx = new TransactionTemplate(tm);
@@ -44,6 +49,9 @@ public class TransferService {
         this.metrics = metrics;
         this.json = json;
         this.retry = retry;
+        this.jdbc = jdbc;
+        this.sqlFunction = sqlFunction && strategy.name().equals(PessimisticTransferStrategy.NAME);
+        this.outboxDelete = "delete".equalsIgnoreCase(outboxMode);
     }
 
     public String strategyName() {
@@ -61,18 +69,28 @@ public class TransferService {
         String outcome = "error";
         boolean first = false;
         int attempt = 0;
+        boolean useFn = sqlFunction;
         try {
             byte[] hash = IdempotencyGuard.sha256(canonical(cmd));
             while (true) {
                 attempt++;
                 span.setAttribute("ledger.attempt", (long) attempt);
                 try {
-                    ApiResult result = tx.execute(status -> execute(cmd, idempotencyKey, hash, span));
+                    final boolean fn = useFn;
+                    ApiResult result = tx.execute(status -> fn ? executeFunction(cmd, idempotencyKey, hash) : execute(cmd, idempotencyKey, hash, span));
                     first = lastWasFirst.get();
                     outcome = result.status() == 201 ? "ok" : result.status() == 409 ? "insufficient_funds" : "error";
                     metrics.attempts(strategy.name(), attempt);
                     return result;
                 } catch (RuntimeException e) {
+                    String sqlState = RetryPolicy.sqlStateOf(e);
+                    if (useFn && "PF001".equals(sqlState)) { // hot account: take the Java path, not a retry
+                        useFn = false;
+                        attempt--;
+                        continue;
+                    }
+                    if ("PF404".equals(sqlState)) throw new LedgerException(404, "ACCOUNT_NOT_FOUND", "account not found");
+                    if ("PF400".equals(sqlState)) throw new LedgerException(400, "CURRENCY_MISMATCH", "accounts and transfer must share one currency");
                     String reason = retry.reasonOf(e);
                     if (reason == null) throw e;
                     metrics.retry(strategy.name(), reason);
@@ -99,6 +117,26 @@ public class TransferService {
             lastWasFirst.remove();
             IdempotencyContext.clear();
         }
+    }
+
+    /** T4: the whole transfer is one SQL function call (one round trip). */
+    private ApiResult executeFunction(TransferCommand cmd, String key, byte[] requestHash) {
+        lastWasFirst.set(false);
+        var row = jdbc.sql("SELECT outcome, status, body FROM post_transfer(:m, :k, :h, :f, :t, :a, :c, :tp, :del)")
+                .param("m", cmd.merchantId()).param("k", key).param("h", requestHash)
+                .param("f", cmd.fromAccountId()).param("t", cmd.toAccountId()).param("a", cmd.amountMinor())
+                .param("c", cmd.currency()).param("tp", OutboxWriter.traceparent()).param("del", outboxDelete)
+                .query((rs, n) -> new Object[]{rs.getString(1), rs.getInt(2), rs.getString(3)}).single();
+        String outcome = (String) row[0];
+        metrics.idempotency(outcome);
+        if (outcome.equals("mismatch")) {
+            throw new LedgerException(422, "IDEMPOTENCY_KEY_REUSED", "Idempotency-Key was used with a different request body");
+        }
+        if (outcome.equals("new")) {
+            lastWasFirst.set(true);
+            if ((int) row[1] == 201) metrics.outboxWrite("TransferPosted");
+        }
+        return new ApiResult((int) row[1], (String) row[2]);
     }
 
     private final ThreadLocal<Boolean> lastWasFirst = ThreadLocal.withInitial(() -> false);

@@ -1,0 +1,105 @@
+name: nightly
+on:
+  schedule:
+    - cron: "17 1 * * *"
+  workflow_dispatch:
+
+jobs:
+  nightly:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    services:
+      postgres:
+        image: postgres:18
+        env: {POSTGRES_USER: ledger, POSTGRES_PASSWORD: ledger, POSTGRES_DB: postgres}
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U ledger" --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      PG_TEST_ADMIN_URL: jdbc:postgresql://localhost:5432/postgres
+      PGHOST: localhost
+      PGUSER: ledger
+      PGPASSWORD: ledger
+      PSQL: psql
+      TOXIPROXY_SERVER: /usr/local/bin/toxiproxy-server
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: {distribution: temurin, java-version: 25, cache: maven}
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - run: pip install matplotlib
+
+      - name: Tools (Postgres client, Prometheus, Toxiproxy)
+        run: |
+          sudo apt-get update && sudo apt-get install -y postgresql-client
+          PV=3.16.0
+          curl -sL https://github.com/prometheus/prometheus/releases/download/v$PV/prometheus-$PV.linux-amd64.tar.gz | tar xz -C "$HOME"
+          echo "PROM_HOME=$HOME/prometheus-$PV.linux-amd64" >> "$GITHUB_ENV"
+          sudo curl -sL -o /usr/local/bin/toxiproxy-server https://github.com/Shopify/toxiproxy/releases/download/v2.13.0/toxiproxy-server-linux-amd64
+          sudo chmod +x /usr/local/bin/toxiproxy-server
+
+      - name: Build
+        run: mvn -B -DskipTests package
+
+      # Property tests at a nightly depth: 10M tries is ~11 days at the measured ~0.1 s/try for the DB-backed property,
+      # so the nightly uses 1M tries for the pure Java-vs-SQL hash property and 5k for the DB-backed ledger property.
+      - name: jqwik (deep)
+        run: mvn -B verify -Djqwik.tries=1000000 -Djqwik.it.tries=5000 -Dconcurrency.seconds=30
+
+      - name: Seed, start Prometheus
+        run: |
+          bash scripts/seed.sh
+          nohup bash scripts/native-prom.sh > prom.log 2>&1 &
+          for i in $(seq 1 30); do curl -fs localhost:9090/-/ready && break; sleep 1; done
+
+      - name: Chaos (3 profiles)
+        run: CHAOS_REQUESTS=50000 bash chaos/chaos.sh
+
+      - name: Tamper
+        run: bash chaos/tamper.sh
+
+      - name: Bench subset (3 strategies x 200 users x uniform+hot, 2 min each)
+        run: |
+          for s in PESSIMISTIC OPTIMISTIC SERIALIZABLE; do
+            for d in uniform hot; do bash scripts/run.sh nightly 200 $s $d 120; done
+          done
+
+      - name: Report
+        run: python perf/report.py
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: nightly-${{ github.run_id }}
+          path: |
+            docs/results.json
+            docs/results.md
+            perf/results/gatling/**/index.html
+            perf/results/verify-*.json
+            perf/results/tamper-*.json
+            perf/results/kills-*.log
+
+  # Grafana dashboards rendered to PNG through the image renderer service (best effort; needs the compose stack).
+  dashboards:
+    runs-on: ubuntu-latest
+    needs: nightly
+    if: always()
+    steps:
+      - uses: actions/checkout@v4
+      - name: Render dashboards
+        run: |
+          docker run -d --name renderer -p 8081:8081 grafana/grafana-image-renderer:latest
+          docker run -d --name grafana -p 3000:3000 --link renderer \
+            -e GF_RENDERING_SERVER_URL=http://renderer:8081/render -e GF_RENDERING_CALLBACK_URL=http://grafana:3000/ \
+            -e GF_AUTH_ANONYMOUS_ENABLED=true -e GF_AUTH_ANONYMOUS_ORG_ROLE=Admin \
+            -v $PWD/deploy/observability/grafana/provisioning:/etc/grafana/provisioning:ro \
+            -v $PWD/deploy/observability/grafana/dashboards:/var/lib/grafana/dashboards:ro \
+            grafana/grafana:12.4.14
+          sleep 25
+          mkdir -p dashboards
+          for uid in ledger-overview money-correctness contention postgres jvm; do
+            curl -fs -o dashboards/$uid.png "http://localhost:3000/render/d/$uid?width=1600&height=1000&from=now-1h&to=now" || true
+          done
+      - uses: actions/upload-artifact@v4
+        with: {name: dashboards, path: dashboards}

@@ -35,6 +35,8 @@ public class VerifyScheduler {
         var c = chain.verifyAll();
         out.put("chainEntriesVerified", c.entries());
         out.put("chainBreaks", c.breaks());
+        out.put("chainVerifySeconds", c.seconds());
+        out.put("chainEntriesPerSecond", c.entriesPerSecond());
         log.info("verify run: {}", out);
         return out;
     }

@@ -1,475 +1,478 @@
 {
-  "components": {
-    "schemas": {
-      "AmountRequest": {
-        "properties": {
-          "amountMinor": {
-            "exclusiveMinimum": 0,
-            "format": "int64",
-            "maximum": 1000000000000000,
-            "type": "integer"
+  "openapi" : "3.1.0",
+  "info" : {
+    "title" : "OpenAPI definition",
+    "version" : "v0"
+  },
+  "paths" : {
+    "/v1/transfers" : {
+      "post" : {
+        "tags" : [ "transfer-controller" ],
+        "operationId" : "create",
+        "parameters" : [ {
+          "name" : "Idempotency-Key",
+          "in" : "header",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/TransferRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/payments" : {
+      "post" : {
+        "tags" : [ "payment-controller" ],
+        "operationId" : "create_1",
+        "parameters" : [ {
+          "name" : "Idempotency-Key",
+          "in" : "header",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CreatePayment"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/payments/{id}/void" : {
+      "post" : {
+        "tags" : [ "payment-controller" ],
+        "operationId" : "voidPayment",
+        "parameters" : [ {
+          "name" : "Idempotency-Key",
+          "in" : "header",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/payments/{id}/refund" : {
+      "post" : {
+        "tags" : [ "payment-controller" ],
+        "operationId" : "refund",
+        "parameters" : [ {
+          "name" : "Idempotency-Key",
+          "in" : "header",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/AmountRequest"
+              }
+            }
           }
         },
-        "type": "object"
-      },
-      "Balance": {
-        "properties": {
-          "accountId": {
-            "format": "uuid",
-            "type": "string"
-          },
-          "balanceMinor": {
-            "format": "int64",
-            "type": "integer"
-          },
-          "currency": {
-            "type": "string"
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/payments/{id}/capture" : {
+      "post" : {
+        "tags" : [ "payment-controller" ],
+        "operationId" : "capture",
+        "parameters" : [ {
+          "name" : "Idempotency-Key",
+          "in" : "header",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/AmountRequest"
+              }
+            }
           }
         },
-        "type": "object"
-      },
-      "CreatePayment": {
-        "properties": {
-          "amountMinor": {
-            "exclusiveMinimum": 0,
-            "format": "int64",
-            "maximum": 1000000000000000,
-            "type": "integer"
-          },
-          "currency": {
-            "pattern": "[A-Z]{3}",
-            "type": "string"
-          },
-          "payeeAccountId": {
-            "format": "uuid",
-            "type": "string"
-          },
-          "payerAccountId": {
-            "format": "uuid",
-            "type": "string"
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
           }
-        },
-        "required": [
-          "currency",
-          "payeeAccountId",
-          "payerAccountId"
-        ],
-        "type": "object"
-      },
-      "Statement": {
-        "properties": {
-          "accountId": {
-            "format": "uuid",
-            "type": "string"
-          },
-          "entries": {
-            "items": {
-              "$ref": "#/components/schemas/StatementLine"
-            },
-            "type": "array"
-          },
-          "nextCursor": {
-            "type": "string"
+        }
+      }
+    },
+    "/v1/payments/{id}/authorize" : {
+      "post" : {
+        "tags" : [ "payment-controller" ],
+        "operationId" : "authorize",
+        "parameters" : [ {
+          "name" : "Idempotency-Key",
+          "in" : "header",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
           }
-        },
-        "type": "object"
-      },
-      "StatementLine": {
-        "properties": {
-          "amountMinor": {
-            "format": "int64",
-            "type": "integer"
-          },
-          "createdAt": {
-            "format": "date-time",
-            "type": "string"
-          },
-          "entryId": {
-            "format": "uuid",
-            "type": "string"
-          },
-          "txnId": {
-            "format": "uuid",
-            "type": "string"
+        }, {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
           }
-        },
-        "type": "object"
-      },
-      "TransferRequest": {
-        "properties": {
-          "amountMinor": {
-            "exclusiveMinimum": 0,
-            "format": "int64",
-            "maximum": 1000000000000000,
-            "type": "integer"
-          },
-          "currency": {
-            "pattern": "[A-Z]{3}",
-            "type": "string"
-          },
-          "fromAccountId": {
-            "format": "uuid",
-            "type": "string"
-          },
-          "toAccountId": {
-            "format": "uuid",
-            "type": "string"
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
           }
+        }
+      }
+    },
+    "/admin/verify" : {
+      "post" : {
+        "tags" : [ "admin-controller" ],
+        "operationId" : "verify",
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "type" : "object",
+                  "additionalProperties" : { }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/tamper-injected" : {
+      "post" : {
+        "tags" : [ "admin-controller" ],
+        "operationId" : "tamperInjected",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "type" : "object",
+                "additionalProperties" : {
+                  "type" : "integer",
+                  "format" : "int64"
+                }
+              }
+            }
+          },
+          "required" : true
         },
-        "required": [
-          "currency",
-          "fromAccountId",
-          "toAccountId"
-        ],
-        "type": "object"
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "type" : "object",
+                  "additionalProperties" : {
+                    "type" : "integer",
+                    "format" : "int64"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/accounts/{id}/statement" : {
+      "get" : {
+        "tags" : [ "account-controller" ],
+        "operationId" : "statement",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        }, {
+          "name" : "limit",
+          "in" : "query",
+          "required" : false,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32",
+            "default" : 50
+          }
+        }, {
+          "name" : "cursor",
+          "in" : "query",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Statement"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/accounts/{id}/balance" : {
+      "get" : {
+        "tags" : [ "account-controller" ],
+        "operationId" : "balance",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Balance"
+                }
+              }
+            }
+          }
+        }
       }
     }
   },
-  "info": {
-    "title": "OpenAPI definition",
-    "version": "v0"
-  },
-  "openapi": "3.1.0",
-  "paths": {
-    "/v1/accounts/{id}/balance": {
-      "get": {
-        "operationId": "balance",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/Balance"
-                }
-              }
-            },
-            "description": "OK"
+  "components" : {
+    "schemas" : {
+      "TransferRequest" : {
+        "type" : "object",
+        "properties" : {
+          "fromAccountId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "toAccountId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "amountMinor" : {
+            "type" : "integer",
+            "format" : "int64",
+            "exclusiveMinimum" : 0,
+            "maximum" : 1000000000000000
+          },
+          "currency" : {
+            "type" : "string",
+            "pattern" : "[A-Z]{3}"
           }
         },
-        "tags": [
-          "account-controller"
-        ]
-      }
-    },
-    "/v1/accounts/{id}/statement": {
-      "get": {
-        "operationId": "statement",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "type": "string"
+        "required" : [ "currency", "fromAccountId", "toAccountId" ]
+      },
+      "CreatePayment" : {
+        "type" : "object",
+        "properties" : {
+          "payerAccountId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "payeeAccountId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "amountMinor" : {
+            "type" : "integer",
+            "format" : "int64",
+            "exclusiveMinimum" : 0,
+            "maximum" : 1000000000000000
+          },
+          "currency" : {
+            "type" : "string",
+            "pattern" : "[A-Z]{3}"
+          }
+        },
+        "required" : [ "currency", "payeeAccountId", "payerAccountId" ]
+      },
+      "AmountRequest" : {
+        "type" : "object",
+        "properties" : {
+          "amountMinor" : {
+            "type" : "integer",
+            "format" : "int64",
+            "exclusiveMinimum" : 0,
+            "maximum" : 1000000000000000
+          }
+        }
+      },
+      "Statement" : {
+        "type" : "object",
+        "properties" : {
+          "accountId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "entries" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/StatementLine"
             }
           },
-          {
-            "in": "query",
-            "name": "limit",
-            "required": false,
-            "schema": {
-              "default": 50,
-              "format": "int32",
-              "type": "integer"
-            }
+          "nextCursor" : {
+            "type" : "string"
+          }
+        }
+      },
+      "StatementLine" : {
+        "type" : "object",
+        "properties" : {
+          "entryId" : {
+            "type" : "string",
+            "format" : "uuid"
           },
-          {
-            "in": "query",
-            "name": "cursor",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/Statement"
-                }
-              }
-            },
-            "description": "OK"
-          }
-        },
-        "tags": [
-          "account-controller"
-        ]
-      }
-    },
-    "/v1/payments": {
-      "post": {
-        "operationId": "create_1",
-        "parameters": [
-          {
-            "in": "header",
-            "name": "Idempotency-Key",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreatePayment"
-              }
-            }
+          "txnId" : {
+            "type" : "string",
+            "format" : "uuid"
           },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            },
-            "description": "OK"
-          }
-        },
-        "tags": [
-          "payment-controller"
-        ]
-      }
-    },
-    "/v1/payments/{id}/authorize": {
-      "post": {
-        "operationId": "authorize",
-        "parameters": [
-          {
-            "in": "header",
-            "name": "Idempotency-Key",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
+          "amountMinor" : {
+            "type" : "integer",
+            "format" : "int64"
           },
-          {
-            "in": "path",
-            "name": "id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "type": "string"
-            }
+          "createdAt" : {
+            "type" : "string",
+            "format" : "date-time"
           }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            },
-            "description": "OK"
-          }
-        },
-        "tags": [
-          "payment-controller"
-        ]
-      }
-    },
-    "/v1/payments/{id}/capture": {
-      "post": {
-        "operationId": "capture",
-        "parameters": [
-          {
-            "in": "header",
-            "name": "Idempotency-Key",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
+        }
+      },
+      "Balance" : {
+        "type" : "object",
+        "properties" : {
+          "accountId" : {
+            "type" : "string",
+            "format" : "uuid"
           },
-          {
-            "in": "path",
-            "name": "id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AmountRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            },
-            "description": "OK"
-          }
-        },
-        "tags": [
-          "payment-controller"
-        ]
-      }
-    },
-    "/v1/payments/{id}/refund": {
-      "post": {
-        "operationId": "refund",
-        "parameters": [
-          {
-            "in": "header",
-            "name": "Idempotency-Key",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
+          "currency" : {
+            "type" : "string"
           },
-          {
-            "in": "path",
-            "name": "id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "type": "string"
-            }
+          "balanceMinor" : {
+            "type" : "integer",
+            "format" : "int64"
           }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AmountRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            },
-            "description": "OK"
-          }
-        },
-        "tags": [
-          "payment-controller"
-        ]
-      }
-    },
-    "/v1/payments/{id}/void": {
-      "post": {
-        "operationId": "voidPayment",
-        "parameters": [
-          {
-            "in": "header",
-            "name": "Idempotency-Key",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "in": "path",
-            "name": "id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            },
-            "description": "OK"
-          }
-        },
-        "tags": [
-          "payment-controller"
-        ]
-      }
-    },
-    "/v1/transfers": {
-      "post": {
-        "operationId": "create",
-        "parameters": [
-          {
-            "in": "header",
-            "name": "Idempotency-Key",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/TransferRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            },
-            "description": "OK"
-          }
-        },
-        "tags": [
-          "transfer-controller"
-        ]
+        }
       }
     }
-  },
-  "servers": [
-    {
-      "description": "Generated server url",
-      "url": "http://localhost:8080"
-    }
-  ]
+  }
 }

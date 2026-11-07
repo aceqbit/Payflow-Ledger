@@ -21,10 +21,10 @@ bench:
 	bash scripts/bench.sh
 
 chaos:
-	@echo TODO; exit 1
+	bash chaos/chaos.sh
 
 tamper:
-	@echo TODO; exit 1
+	bash chaos/tamper.sh
 
 report:
 	python perf/report.py

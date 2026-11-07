@@ -1,0 +1,198 @@
+# One firing and one quiet case per alert. Run: promtool test rules deploy/observability/prometheus/tests/*.yml
+rule_files:
+  - ../rules/ledger.yml
+  - ../rules/alerts.yml
+evaluation_interval: 1m
+tests:
+  - name: InvariantViolation fires
+    interval: 1m
+    input_series:
+      - series: 'ledger_invariant_violations{check="global_sum"}'
+        values: '0 0 1 1 1'
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: InvariantViolation
+        exp_alerts:
+          - exp_labels: {severity: critical}
+            exp_annotations: {summary: "A money invariant is violated"}
+  - name: InvariantViolation stays quiet
+    interval: 1m
+    input_series:
+      - series: 'ledger_invariant_violations{check="global_sum"}'
+        values: '0 0 0 0 0'
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: InvariantViolation
+        exp_alerts: []
+  - name: InvariantCheckerStale fires
+    interval: 1m
+    input_series:
+      - series: 'ledger_invariant_last_run_timestamp_seconds'
+        values: '0 0 0 0 0 0 0 0'
+    alert_rule_test:
+      - eval_time: 7m
+        alertname: InvariantCheckerStale
+        exp_alerts:
+          - exp_labels: {severity: critical}
+            exp_annotations: {summary: "The invariant checker has not run for 2 minutes"}
+  - name: InvariantCheckerStale stays quiet
+    interval: 1m
+    input_series:
+      - series: 'ledger_invariant_last_run_timestamp_seconds'
+        values: '0+60x10'
+    alert_rule_test:
+      - eval_time: 7m
+        alertname: InvariantCheckerStale
+        exp_alerts: []
+  - name: ChainBreakOutsideTamperTest fires
+    interval: 1m
+    input_series:
+      - series: 'ledger_chain_breaks{kind="edit",scenario="baseline"}'
+        values: '0 1 1 1 1'
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: ChainBreakOutsideTamperTest
+        exp_alerts:
+          - exp_labels: {severity: critical}
+            exp_annotations: {summary: "Hash chain break outside a tamper test"}
+  - name: ChainBreakOutsideTamperTest stays quiet
+    interval: 1m
+    input_series:
+      - series: 'ledger_chain_breaks{kind="edit",scenario="tamper"}'
+        values: '0 5 5 5 5'
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: ChainBreakOutsideTamperTest
+        exp_alerts: []
+  - name: AvailabilityFastBurn fires
+    interval: 1m
+    input_series:
+      - series: 'ledger:sli_availability:1h'
+        values: '0.97+0x10'
+      - series: 'ledger:sli_availability:5m'
+        values: '0.97+0x10'
+    alert_rule_test:
+      - eval_time: 6m
+        alertname: AvailabilityFastBurn
+        exp_alerts:
+          - exp_labels: {severity: page}
+            exp_annotations: {summary: "Availability error budget burning 14.4x"}
+  - name: AvailabilityFastBurn stays quiet
+    interval: 1m
+    input_series:
+      - series: 'ledger:sli_availability:1h'
+        values: '0.9999+0x10'
+      - series: 'ledger:sli_availability:5m'
+        values: '0.9999+0x10'
+    alert_rule_test:
+      - eval_time: 6m
+        alertname: AvailabilityFastBurn
+        exp_alerts: []
+  - name: AvailabilitySlowBurn fires
+    interval: 1m
+    input_series:
+      - series: 'ledger:sli_availability:6h'
+        values: '0.99+0x30'
+      - series: 'ledger:sli_availability:30m'
+        values: '0.99+0x30'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: AvailabilitySlowBurn
+        exp_alerts:
+          - exp_labels: {severity: ticket}
+            exp_annotations: {summary: "Availability error budget burning 6x"}
+  - name: AvailabilitySlowBurn stays quiet
+    interval: 1m
+    input_series:
+      - series: 'ledger:sli_availability:6h'
+        values: '0.9999+0x30'
+      - series: 'ledger:sli_availability:30m'
+        values: '0.9999+0x30'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: AvailabilitySlowBurn
+        exp_alerts: []
+  - name: LatencyFastBurn fires
+    interval: 1m
+    input_series:
+      - series: 'ledger:sli_latency_50ms:1h'
+        values: '0.8+0x10'
+      - series: 'ledger:sli_latency_50ms:5m'
+        values: '0.8+0x10'
+    alert_rule_test:
+      - eval_time: 6m
+        alertname: LatencyFastBurn
+        exp_alerts:
+          - exp_labels: {severity: page}
+            exp_annotations: {summary: "Latency error budget burning 14.4x"}
+  - name: LatencyFastBurn stays quiet
+    interval: 1m
+    input_series:
+      - series: 'ledger:sli_latency_50ms:1h'
+        values: '0.995+0x10'
+      - series: 'ledger:sli_latency_50ms:5m'
+        values: '0.995+0x10'
+    alert_rule_test:
+      - eval_time: 6m
+        alertname: LatencyFastBurn
+        exp_alerts: []
+  - name: Deadlocks fires
+    interval: 1m
+    input_series:
+      - series: 'postgresql_deadlocks_total'
+        values: '0 0 0 1 2 2 2'
+    alert_rule_test:
+      - eval_time: 6m
+        alertname: Deadlocks
+        exp_alerts:
+          - exp_labels: {severity: warning}
+            exp_annotations: {summary: "Postgres reported a deadlock"}
+  - name: Deadlocks stays quiet
+    interval: 1m
+    input_series:
+      - series: 'postgresql_deadlocks_total'
+        values: '3 3 3 3 3 3 3'
+    alert_rule_test:
+      - eval_time: 6m
+        alertname: Deadlocks
+        exp_alerts: []
+  - name: PoolStarved fires
+    interval: 1m
+    input_series:
+      - series: 'hikaricp_connections_pending'
+        values: '0 3 3 3 3 3'
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: PoolStarved
+        exp_alerts:
+          - exp_labels: {severity: warning}
+            exp_annotations: {summary: "Connections are waiting for the pool"}
+  - name: PoolStarved stays quiet
+    interval: 1m
+    input_series:
+      - series: 'hikaricp_connections_pending'
+        values: '0 0 0 0 0 0'
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: PoolStarved
+        exp_alerts: []
+  - name: ReplicationSlotLag fires
+    interval: 1m
+    input_series:
+      - series: 'pg_replication_slot_lag_bytes{slot="events"}'
+        values: '2000000000+0x12'
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: ReplicationSlotLag
+        exp_alerts:
+          - exp_labels: {severity: warning}
+            exp_annotations: {summary: "A replication slot holds more than 1 GB of WAL"}
+  - name: ReplicationSlotLag stays quiet
+    interval: 1m
+    input_series:
+      - series: 'pg_replication_slot_lag_bytes{slot="events"}'
+        values: '1000+0x12'
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: ReplicationSlotLag
+        exp_alerts: []
