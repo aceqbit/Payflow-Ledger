@@ -9,3 +9,4 @@
   - idempotency PK -> idempotencyKeyIsUniquePerMerchant; outbox contract -> outboxDefaultsFollowContract, outboxSeqUniquePerAggregate
   - DEVIATION: idempotency_keys is NOT day-partitioned (Postgres needs partition key in the PK, which would break global key uniqueness across midnight). Retention by expires_at.
   - DEVIATION: tests use a native Postgres via TestDb (env PG_TEST_ADMIN_URL) instead of Testcontainers because Docker is unavailable here.
+- P1-05: HashChain (Java) + V6 ledger_entry_hash() (SQL). Check: PASS, mvn test -Dtest=HashChain* 5 tests, jqwik 10000 tries Java==SQL, independent fixed vector from raw-hex sha256 in psql.

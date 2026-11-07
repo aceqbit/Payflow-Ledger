@@ -28,4 +28,5 @@ make up | down | test | it | bench | chaos | tamper | report
 - All custom meters live in telemetry/LedgerMetrics. Never label by account/merchant/payment/key ids.
 - Latency histograms with SLO buckets 5,10,25,50,100,250,500 ms.
 - Dashboards, alerts, Collector config are files in deploy/observability/.
+- jqwik tries: -Djqwik.tries.default=N (surefire passes it; 10000 on push, 10000000 nightly).
 - Bench numbers come only from make report. One prompt = one commit: `<prompt-id>: <what changed>`.
