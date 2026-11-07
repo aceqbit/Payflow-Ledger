@@ -187,31 +187,47 @@ def hot_section(rows):
     return out
 
 
+def _avg(runs, key):
+    vals = [r[key] for r in runs if r.get(key) is not None]
+    return sum(vals) / len(vals) if vals else None
+
+
 def tuning_section(rows):
     steps = {}
     for r in rows:
         if r["scenario"].startswith("tune-"):
             _, step, phase = r["scenario"].split("-", 2)
-            steps.setdefault(step, {}).setdefault(phase, {})[r["dist"]] = r
+            steps.setdefault(step, {}).setdefault(phase, {}).setdefault(r["dist"], []).append(r)
     if not steps:
         return []
     out = ["", "## Tuning loop", "",
+           "Each cell is the mean of the interleaved runs for that variant (n shown). TPS is the server-side Prometheus rate over the measure window; "
+           "p50/p99 are client-side (Gatling) because the server histogram tops out at 500 ms. The shared laptop also ran an unrelated Kafka/dual-write "
+           "workload during these runs, so run-to-run noise is large; treat gains under about 10% as inconclusive.", "",
            "Rule: keep a change only if every invariant stays 0 and TPS or p99 improves by 5% or more without the other getting more than 5% worse.", "",
-           "| step | change | scenario | TPS before -> after | p99 ms before -> after | round-trips before -> after | decision | before run | after run |",
-           "|---|---|---|---|---|---|---|---|---|"]
+           "| step | change | skew | n | TPS before -> after | client p50 ms before -> after | client p99 ms before -> after | round-trips before -> after | decision | before runs | after runs |",
+           "|---|---|---|---|---|---|---|---|---|---|---|"]
     for step in sorted(steps):
-        verdicts = []
+        if "after" not in steps[step]:
+            continue
+        base = step.split("_")[0]
         for dist in ("uniform", "hot"):
-            b, a = steps[step].get("before", {}).get(dist), steps[step].get("after", {}).get(dist)
-            if not b or not a or not b["tps"] or not a["p99_ms"] or not b["p99_ms"]:
+            bs = (steps[step].get("before") or steps.get(base, {}).get("before") or {}).get(dist)
+            as_ = steps[step]["after"].get(dist)
+            if not bs or not as_:
                 continue
-            tps_gain = (a["tps"] - b["tps"]) / b["tps"] * 100
-            p99_gain = (b["p99_ms"] - a["p99_ms"]) / b["p99_ms"] * 100
-            keep = inv_ok(a) and ((tps_gain >= 5 and p99_gain > -5) or (p99_gain >= 5 and tps_gain > -5))
-            verdicts.append(keep)
-            out.append(f"| {step} | {a.get('note', '')} | {dist} | {fmt(b['tps'])} -> {fmt(a['tps'])} ({tps_gain:+.1f}%) | "
-                       f"{fmt(b['p99_ms'], 2)} -> {fmt(a['p99_ms'], 2)} ({-p99_gain:+.1f}%) | {fmt(b['roundtrips_mean'], 2)} -> {fmt(a['roundtrips_mean'], 2)} | "
-                       f"{'kept' if keep else 'reverted'} | {b['run_id']} | {a['run_id']} |")
+            bt, at = _avg(bs, "tps"), _avg(as_, "tps")
+            bp, ap = _avg(bs, "client_p99_ms"), _avg(as_, "client_p99_ms")
+            b5, a5 = _avg(bs, "client_p50_ms"), _avg(as_, "client_p50_ms")
+            if not (bt and at and bp and ap):
+                continue
+            tps_gain = (at - bt) / bt * 100
+            p99_gain = (bp - ap) / bp * 100
+            keep = all(inv_ok(r) for r in as_) and ((tps_gain >= 5 and p99_gain > -5) or (p99_gain >= 5 and tps_gain > -5))
+            note = as_[-1].get("note", "")
+            out.append(f"| {step} | {note} | {dist} | {len(bs)}/{len(as_)} | {fmt(bt)} -> {fmt(at)} ({tps_gain:+.1f}%) | {fmt(b5)} -> {fmt(a5)} | "
+                       f"{fmt(bp)} -> {fmt(ap)} ({-p99_gain:+.1f}%) | {fmt(_avg(bs, 'roundtrips_mean'), 2)} -> {fmt(_avg(as_, 'roundtrips_mean'), 2)} | "
+                       f"{'kept' if keep else 'reverted'} | {', '.join(r['run_id'] for r in bs)} | {', '.join(r['run_id'] for r in as_)} |")
     return out
 
 

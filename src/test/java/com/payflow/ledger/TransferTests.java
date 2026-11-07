@@ -3,14 +3,9 @@ package com.payflow.ledger;
 import com.payflow.ledger.support.TestDb;
 import com.payflow.ledger.support.TestTokens;
 import io.micrometer.core.instrument.MeterRegistry;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -23,28 +18,16 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-class TransferIT {
-    static TestDb db;
+abstract class TransferTests {
+    abstract TestDb dbRef();
+    abstract double expectedRoundTrips();
     static final HttpClient http = HttpClient.newHttpClient();
-
-    @BeforeAll static void up() { db = TestDb.create(); }
-    @AfterAll static void down() { db.drop(); }
-
-    @DynamicPropertySource
-    static void props(DynamicPropertyRegistry r) {
-        if (db == null) db = TestDb.create();
-        r.add("spring.datasource.url", () -> db.url);
-        r.add("spring.datasource.username", () -> TestDb.USER);
-        r.add("spring.datasource.password", () -> TestDb.PASSWORD);
-        r.add("management.otlp.metrics.export.enabled", () -> "false");
-    }
 
     @LocalServerPort int port;
     @Autowired MeterRegistry registry;
 
     UUID account(String merchant, long balance) throws Exception {
-        try (Connection c = db.connect(); Statement s = c.createStatement();
+        try (Connection c = dbRef().connect(); Statement s = c.createStatement();
              ResultSet r = s.executeQuery("INSERT INTO accounts (merchant_id,currency,balance_minor) VALUES ('" + merchant + "','USD'," + balance + ") RETURNING id")) {
             r.next(); return r.getObject(1, UUID.class);
         }
@@ -60,7 +43,7 @@ class TransferIT {
     }
 
     long scalar(String sql) throws Exception {
-        try (Connection c = db.connect(); Statement s = c.createStatement(); ResultSet r = s.executeQuery(sql)) {
+        try (Connection c = dbRef().connect(); Statement s = c.createStatement(); ResultSet r = s.executeQuery(sql)) {
             r.next(); return r.getLong(1);
         }
     }
@@ -115,7 +98,7 @@ class TransferIT {
         String m = "m-" + UUID.randomUUID();
         UUID a = account(m, 10), b = account(m, 0);
         assertEquals(201, post(m, UUID.randomUUID().toString(), a, b, 1).statusCode());
-        try (Connection c = db.connect(); Statement s = c.createStatement();
+        try (Connection c = dbRef().connect(); Statement s = c.createStatement();
              ResultSet r = s.executeQuery("SELECT traceparent FROM outbox WHERE merchant_id='" + m + "'")) {
             r.next();
             assertNotNull(r.getString(1), "outbox row must carry the request span's traceparent");
@@ -131,7 +114,7 @@ class TransferIT {
         assertEquals(201, post(m, UUID.randomUUID().toString(), a, b, 1).statusCode());
         var s = registry.find("ledger.db.roundtrips").tag("operation", "transfer").summary();
         assertEquals(before + 1, s.count());
-        assertEquals(8.0, s.max(), "baseline pessimistic transfer is 8 statements");
+        assertEquals(expectedRoundTrips(), s.max(), "statements per transfer");
     }
 
     @Test void metricsCarryStrategyAndOutcomeLabels() throws Exception {
