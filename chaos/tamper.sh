@@ -9,7 +9,7 @@ source scripts/env.sh
 ENTRIES=${ENTRIES:-1000000}
 export SCENARIO=tamper
 export RUN_ID="$(date +%Y%m%d-%H%M%S)-tamper"
-JAR=$(ls target/payflow-ledger-*.jar | grep -v original | head -1)
+JAR=$(bash scripts/appjar.sh)
 OUT=perf/results; mkdir -p $OUT
 
 $PSQL -d postgres -qc "DROP DATABASE IF EXISTS ledger_tamper WITH (FORCE)"

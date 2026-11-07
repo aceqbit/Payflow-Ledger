@@ -212,7 +212,7 @@ def tuning_section(rows):
             continue
         base = step.split("_")[0]
         for dist in ("uniform", "hot"):
-            bs = (steps[step].get("before") or steps.get(base, {}).get("before") or {}).get(dist)
+            bs = (steps[step].get("before") or steps.get(base, {}).get("before") or steps.get("TB", {}).get("before") or {}).get(dist)
             as_ = steps[step]["after"].get(dist)
             if not bs or not as_:
                 continue

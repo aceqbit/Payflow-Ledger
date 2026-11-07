@@ -13,7 +13,7 @@ export SCENARIO
 export RUN_ID="$(date +%Y%m%d-%H%M%S)-${SCENARIO}-${USERS}u-${STRATEGY}-${DIST}"
 PROFILES="$APP_PROFILES${EXTRA_PROFILE:+,$EXTRA_PROFILE}"
 PROFILES=${PROFILES#,}
-JAR=$(ls target/payflow-ledger-*.jar | grep -v original | head -1)
+JAR=$(bash scripts/appjar.sh)
 OUT=perf/results; mkdir -p $OUT
 echo "== $RUN_ID (profiles: ${PROFILES:-none})"
 
@@ -21,6 +21,11 @@ echo "== $RUN_ID (profiles: ${PROFILES:-none})"
 $PSQL -d postgres -qc "DROP DATABASE IF EXISTS ledger_run WITH (FORCE)"
 $PSQL -d postgres -qc "CREATE DATABASE ledger_run TEMPLATE ledger_seed"
 
+# optional per-run database settings, e.g. DB_SETTINGS="commit_delay=1000 commit_siblings=5"
+for kv in ${DB_SETTINGS:-}; do
+  $PSQL -d postgres -qc "ALTER DATABASE ledger_run SET ${kv%%=*} = '${kv#*=}'"
+done
+[ -n "${DB_SQL:-}" ] && $PSQL -d ledger_run -q -c "$DB_SQL"
 if [ -n "${HOT_BUCKETS:-}" ]; then
   $PSQL -d ledger_run -q -f perf/hot.sql -c "SELECT make_hot_all($HOT_BUCKETS)" > /dev/null
 fi

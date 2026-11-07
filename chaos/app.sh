@@ -3,7 +3,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 source scripts/env.sh
-JAR=$(ls target/payflow-ledger-*.jar | grep -v original | head -1)
+JAR=$(bash scripts/appjar.sh)
 
 case "${1:?usage}" in
   start)
