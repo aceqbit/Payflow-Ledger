@@ -4,14 +4,9 @@ import com.payflow.ledger.ledger.ApiResult;
 import com.payflow.ledger.ledger.TransferCommand;
 import com.payflow.ledger.ledger.TransferService;
 import com.payflow.ledger.support.LedgerFixture;
-import com.payflow.ledger.support.SpringDbTest;
 import com.payflow.ledger.support.TestDb;
-import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 
 import java.sql.Connection;
 import java.sql.ResultSet;
@@ -27,27 +22,20 @@ import java.util.concurrent.Future;
 import static org.junit.jupiter.api.Assertions.*;
 
 /** 100 threads, one Idempotency-Key, released together by a latch: exactly one charge, 100 identical responses. */
-@SpringBootTest
-class IdempotencyRaceIT {
-    static TestDb db;
-
-    @DynamicPropertySource static void props(DynamicPropertyRegistry r) {
-        if (db == null) db = TestDb.create();
-        SpringDbTest.wire(r, db);
-    }
-    @AfterAll static void down() { db.drop(); }
+abstract class IdempotencyRaceTests {
+    abstract TestDb db();
 
     @Autowired TransferService transfers;
 
     long scalar(String sql) throws Exception {
-        try (Connection c = db.connect(); Statement s = c.createStatement(); ResultSet r = s.executeQuery(sql)) {
+        try (Connection c = db().connect(); Statement s = c.createStatement(); ResultSet r = s.executeQuery(sql)) {
             r.next(); return r.getLong(1);
         }
     }
 
     @Test void hundredThreadsOneKeyChargeExactlyOnce() throws Exception {
         UUID a, b;
-        try (Connection c = db.connect()) {
+        try (Connection c = db().connect()) {
             UUID sys = LedgerFixture.account(c, "rm", true);
             a = LedgerFixture.account(c, "rm", false);
             b = LedgerFixture.account(c, "rm", false);

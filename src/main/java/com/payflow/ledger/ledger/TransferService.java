@@ -1,5 +1,6 @@
 package com.payflow.ledger.ledger;
 
+import com.payflow.ledger.idempotency.IdempotencyContext;
 import com.payflow.ledger.idempotency.IdempotencyGuard;
 import com.payflow.ledger.telemetry.LedgerMetrics;
 import io.opentelemetry.api.trace.Span;
@@ -17,7 +18,10 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.TreeMap;
 
-/** One Postgres transaction per request: idempotency row, entries, balances, hash heads, outbox, stored response. */
+/**
+ * One Postgres transaction per attempt: idempotency row, entries, balances, hash heads, outbox, stored response.
+ * Conflicts roll the whole attempt back (including the idempotency row) and are retried by the shared RetryPolicy.
+ */
 @Service
 public class TransferService {
     private final TransferStrategy strategy;
@@ -26,9 +30,10 @@ public class TransferService {
     private final OutboxWriter outbox;
     private final LedgerMetrics metrics;
     private final ObjectMapper json;
+    private final RetryPolicy retry;
 
     public TransferService(List<TransferStrategy> strategies, PlatformTransactionManager tm, IdempotencyGuard guard,
-                           OutboxWriter outbox, LedgerMetrics metrics, ObjectMapper json,
+                           OutboxWriter outbox, LedgerMetrics metrics, ObjectMapper json, RetryPolicy retry,
                            @Value("${ledger.strategy:PESSIMISTIC}") String strategyName) {
         this.strategy = strategies.stream().filter(s -> s.name().equalsIgnoreCase(strategyName)).findFirst()
                 .orElseThrow(() -> new IllegalStateException("unknown ledger.strategy " + strategyName));
@@ -38,6 +43,11 @@ public class TransferService {
         this.outbox = outbox;
         this.metrics = metrics;
         this.json = json;
+        this.retry = retry;
+    }
+
+    public String strategyName() {
+        return strategy.name();
     }
 
     public ApiResult transfer(TransferCommand cmd, String idempotencyKey) {
@@ -48,26 +58,46 @@ public class TransferService {
         long t0 = System.nanoTime();
         Span span = Span.current();
         span.setAttribute("ledger.strategy", strategy.name());
-        span.setAttribute("ledger.attempt", 1L);
         String outcome = "error";
+        boolean first = false;
+        int attempt = 0;
         try {
             byte[] hash = IdempotencyGuard.sha256(canonical(cmd));
-            ApiResult result = tx.execute(status -> execute(cmd, idempotencyKey, hash, span));
-            outcome = result.status() == 201 ? "ok" : result.status() == 409 ? "insufficient_funds" : "error";
-            return result;
+            while (true) {
+                attempt++;
+                span.setAttribute("ledger.attempt", (long) attempt);
+                try {
+                    ApiResult result = tx.execute(status -> execute(cmd, idempotencyKey, hash, span));
+                    first = lastWasFirst.get();
+                    outcome = result.status() == 201 ? "ok" : result.status() == 409 ? "insufficient_funds" : "error";
+                    metrics.attempts(strategy.name(), attempt);
+                    return result;
+                } catch (RuntimeException e) {
+                    String reason = retry.reasonOf(e);
+                    if (reason == null) throw e;
+                    metrics.retry(strategy.name(), reason);
+                    if (attempt >= RetryPolicy.MAX_ATTEMPTS) {
+                        first = true;
+                        metrics.attempts(strategy.name(), attempt);
+                        throw new LedgerException(503, "CONFLICT_RETRIES_EXHAUSTED",
+                                "gave up after " + attempt + " attempts (" + reason + "); retry with the same Idempotency-Key");
+                    }
+                    retry.sleep(attempt);
+                }
+            }
         } catch (LedgerException e) {
-            outcome = e.httpStatus() == 422 ? "conflict" : "error";
+            outcome = e.httpStatus() == 422 || e.httpStatus() == 503 ? "conflict" : "error";
             throw e;
         } catch (RuntimeException e) {
             span.setStatus(StatusCode.ERROR, e.getClass().getSimpleName());
             throw e;
         } finally {
             metrics.roundtrips("transfer", CountingJdbc.count());
-            if (lastWasFirst.get()) {
+            if (first || lastWasFirst.get()) {
                 metrics.transferDuration(strategy.name(), outcome, Duration.ofNanos(System.nanoTime() - t0));
             }
             lastWasFirst.remove();
-            com.payflow.ledger.idempotency.IdempotencyContext.clear();
+            IdempotencyContext.clear();
         }
     }
 
@@ -80,7 +110,7 @@ public class TransferService {
             return new ApiResult(replay.get().status(), replay.get().body());
         }
         lastWasFirst.set(true);
-        com.payflow.ledger.idempotency.IdempotencyContext.set(cmd.merchantId(), key);
+        IdempotencyContext.set(cmd.merchantId(), key);
 
         PostResult post = strategy.post(cmd);
         ApiResult result;

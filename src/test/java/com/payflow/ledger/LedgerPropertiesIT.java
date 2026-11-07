@@ -33,24 +33,27 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 class LedgerPropertiesIT {
     static TestDb db;
-    static ConfigurableApplicationContext ctx;
-    static PaymentService payments;
-    static TransferService transfers;
+    static final java.util.Map<String, ConfigurableApplicationContext> CTX = new java.util.LinkedHashMap<>();
+    static final java.util.Map<String, PaymentService> PAYMENTS = new java.util.HashMap<>();
+    static final java.util.Map<String, TransferService> TRANSFERS = new java.util.HashMap<>();
     static Connection conn;
 
     @BeforeContainer static void up() throws Exception {
         db = TestDb.create();
-        ctx = new SpringApplicationBuilder(PayflowLedgerApplication.class).run("--server.port=0",
-                "--spring.datasource.url=" + db.url, "--spring.datasource.username=" + TestDb.USER,
-                "--spring.datasource.password=" + TestDb.PASSWORD, "--management.otlp.metrics.export.enabled=false",
-                "--ledger.verify.enabled=false", "--spring.main.banner-mode=off");
-        payments = ctx.getBean(PaymentService.class);
-        transfers = ctx.getBean(TransferService.class);
+        for (String strategy : List.of("PESSIMISTIC", "OPTIMISTIC", "SERIALIZABLE")) {
+            var c = new SpringApplicationBuilder(PayflowLedgerApplication.class).run("--server.port=0",
+                    "--spring.datasource.url=" + db.url, "--spring.datasource.username=" + TestDb.USER,
+                    "--spring.datasource.password=" + TestDb.PASSWORD, "--management.otlp.metrics.export.enabled=false",
+                    "--ledger.verify.enabled=false", "--spring.main.banner-mode=off", "--ledger.strategy=" + strategy);
+            CTX.put(strategy, c);
+            PAYMENTS.put(strategy, c.getBean(PaymentService.class));
+            TRANSFERS.put(strategy, c.getBean(TransferService.class));
+        }
         conn = db.connect();
     }
 
     @AfterContainer static void down() {
-        if (ctx != null) ctx.close();
+        CTX.values().forEach(ConfigurableApplicationContext::close);
         try { conn.close(); } catch (Exception ignored) { }
         db.drop();
     }
@@ -58,8 +61,10 @@ class LedgerPropertiesIT {
     enum Op { AUTHORIZE, CAPTURE_FULL, CAPTURE_PART, REFUND_FULL, REFUND_PART, VOID, TRANSFER }
 
     @Property
-    void invariantsHoldAfterEveryStep(@ForAll("ops") List<Op> ops, @ForAll @net.jqwik.api.constraints.IntRange(min = 1, max = 500) int amount,
+    void invariantsHoldAfterEveryStep(@ForAll("strategies") String strategy, @ForAll("ops") List<Op> ops, @ForAll @net.jqwik.api.constraints.IntRange(min = 1, max = 500) int amount,
                                       @ForAll @net.jqwik.api.constraints.IntRange(min = 1, max = 500) int part) throws Exception {
+        PaymentService payments = PAYMENTS.get(strategy);
+        TransferService transfers = TRANSFERS.get(strategy);
         String m = "prop-" + UUID.randomUUID();
         UUID payer, payee;
         {
@@ -99,6 +104,10 @@ class LedgerPropertiesIT {
             }
             checkMoney(payer, payee, id, total);
         }
+    }
+
+    @Provide Arbitrary<String> strategies() {
+        return Arbitraries.of("PESSIMISTIC", "OPTIMISTIC", "SERIALIZABLE");
     }
 
     @Provide Arbitrary<List<Op>> ops() {

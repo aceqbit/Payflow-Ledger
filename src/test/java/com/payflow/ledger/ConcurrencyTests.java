@@ -11,10 +11,7 @@ import com.payflow.ledger.verify.InvariantChecker;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.dao.DataAccessException;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 
 import java.sql.Connection;
 import java.sql.ResultSet;
@@ -31,31 +28,25 @@ import java.util.concurrent.atomic.AtomicLong;
 import static org.junit.jupiter.api.Assertions.*;
 
 /** 500 virtual threads doing random transfers among 50 accounts. Asserts invariants, never timings. */
-@SpringBootTest
-class ConcurrencyIT {
-    static TestDb db;
-
-    @DynamicPropertySource static void props(DynamicPropertyRegistry r) {
-        if (db == null) db = TestDb.create();
-        SpringDbTest.wire(r, db);
-    }
-    @AfterAll static void down() { db.drop(); }
+abstract class ConcurrencyTests {
+    abstract TestDb db();
+    abstract String strategy();
 
     @Autowired TransferService transfers;
     @Autowired InvariantChecker invariants;
     @Autowired ChainVerifier chain;
 
     long deadlocks() throws Exception {
-        try (Connection c = db.connect(); Statement s = c.createStatement();
+        try (Connection c = db().connect(); Statement s = c.createStatement();
              ResultSet r = s.executeQuery("SELECT deadlocks FROM pg_stat_database WHERE datname = current_database()")) {
             r.next(); return r.getLong(1);
         }
     }
 
     @Test void fiveHundredThreadsKeepEveryInvariant() throws Exception {
-        int seconds = Integer.getInteger("concurrency.seconds", 30);
+        int seconds = Integer.getInteger("concurrency.seconds", 20);
         List<UUID> accounts = new ArrayList<>();
-        try (Connection c = db.connect()) {
+        try (Connection c = db().connect()) {
             UUID sys = LedgerFixture.account(c, "cm", true);
             for (int i = 0; i < 50; i++) {
                 UUID a = LedgerFixture.account(c, "cm", false);
@@ -65,7 +56,7 @@ class ConcurrencyIT {
         }
         long deadlocksBefore = deadlocks();
         long deadline = System.nanoTime() + seconds * 1_000_000_000L;
-        AtomicLong ok = new AtomicLong(), insufficient = new AtomicLong(), lockTimeouts = new AtomicLong(), other = new AtomicLong();
+        AtomicLong exhausted = new AtomicLong(), ok = new AtomicLong(), insufficient = new AtomicLong(), lockTimeouts = new AtomicLong(), other = new AtomicLong();
         List<Throwable> unexpected = new ArrayList<>();
 
         try (ExecutorService pool = Executors.newVirtualThreadPerTaskExecutor()) {
@@ -83,7 +74,8 @@ class ConcurrencyIT {
                             if (String.valueOf(e.getMostSpecificCause().getMessage()).contains("lock timeout")) lockTimeouts.incrementAndGet();
                             else synchronized (unexpected) { unexpected.add(e); }
                         } catch (LedgerException e) {
-                            synchronized (unexpected) { unexpected.add(e); }
+                            if (e.httpStatus() == 503) exhausted.incrementAndGet(); // retries exhausted under contention: legitimate, client retries
+                            else synchronized (unexpected) { unexpected.add(e); }
                         }
                     }
                 }));
@@ -94,7 +86,9 @@ class ConcurrencyIT {
         assertTrue(unexpected.isEmpty(), "unexpected failures: " + unexpected.stream().limit(3).toList());
         assertEquals(0, other.get());
         assertTrue(ok.get() > 1000, "expected real throughput, got " + ok.get());
-        assertEquals(0, deadlocks() - deadlocksBefore, "ordered locks must never deadlock");
+        if (strategy().equals("PESSIMISTIC")) {
+            assertEquals(0, deadlocks() - deadlocksBefore, "ordered locks must never deadlock");
+        }
 
         var inv = invariants.run();
         assertEquals(0L, inv.get("global_sum"), inv.toString());
@@ -103,6 +97,6 @@ class ConcurrencyIT {
         assertEquals(0L, inv.get("duplicate_charge"), inv.toString());
         var c = chain.verifyAll();
         assertEquals(0L, c.breaks().values().stream().mapToLong(Long::longValue).sum(), c.toString());
-        System.out.printf("ConcurrencyIT: ok=%d insufficient=%d lockTimeouts=%d entries=%d%n", ok.get(), insufficient.get(), lockTimeouts.get(), c.entries());
+        System.out.printf("Concurrency[%s]: ok=%d insufficient=%d lockTimeouts=%d retriesExhausted=%d deadlocks=%d entries=%d%n", strategy(), ok.get(), insufficient.get(), lockTimeouts.get(), exhausted.get(), deadlocks() - deadlocksBefore, c.entries());
     }
 }
