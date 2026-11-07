@@ -1,0 +1,76 @@
+### PayFlow Ledger examples (VS Code REST Client / IntelliJ HTTP client)
+### Mint a dev token: any HS256 JWT signed with JWT_SECRET (default dev-only-secret-change-me-0123456789abcdef)
+### carrying a "merchant_id" claim. merchant_id is NEVER read from the request body.
+
+@host = http://localhost:8080
+@token = <paste HS256 JWT with merchant_id claim>
+@payer = <payer account uuid>
+@payee = <payee account uuid>
+
+### Transfer (first execution -> 201)
+POST {{host}}/v1/transfers
+Authorization: Bearer {{token}}
+Content-Type: application/json
+Idempotency-Key: demo-transfer-1
+
+{"fromAccountId": "{{payer}}", "toAccountId": "{{payee}}", "amountMinor": 500, "currency": "USD"}
+
+### Idempotent retry: same key, same body -> identical status and body, money moves once
+POST {{host}}/v1/transfers
+Authorization: Bearer {{token}}
+Content-Type: application/json
+Idempotency-Key: demo-transfer-1
+
+{"fromAccountId": "{{payer}}", "toAccountId": "{{payee}}", "amountMinor": 500, "currency": "USD"}
+
+### Same key, different body -> 422
+POST {{host}}/v1/transfers
+Authorization: Bearer {{token}}
+Content-Type: application/json
+Idempotency-Key: demo-transfer-1
+
+{"fromAccountId": "{{payer}}", "toAccountId": "{{payee}}", "amountMinor": 501, "currency": "USD"}
+
+### Create payment
+POST {{host}}/v1/payments
+Authorization: Bearer {{token}}
+Content-Type: application/json
+Idempotency-Key: demo-pay-1
+
+{"payerAccountId": "{{payer}}", "payeeAccountId": "{{payee}}", "amountMinor": 1000, "currency": "USD"}
+
+### Authorize / capture / refund / void (replace the id with the paymentId from the response above)
+@paymentId = <payment uuid>
+
+POST {{host}}/v1/payments/{{paymentId}}/authorize
+Authorization: Bearer {{token}}
+Idempotency-Key: demo-auth-1
+
+###
+POST {{host}}/v1/payments/{{paymentId}}/capture
+Authorization: Bearer {{token}}
+Content-Type: application/json
+Idempotency-Key: demo-capture-1
+
+{"amountMinor": 400}
+
+###
+POST {{host}}/v1/payments/{{paymentId}}/refund
+Authorization: Bearer {{token}}
+Content-Type: application/json
+Idempotency-Key: demo-refund-1
+
+{"amountMinor": 100}
+
+###
+POST {{host}}/v1/payments/{{paymentId}}/void
+Authorization: Bearer {{token}}
+Idempotency-Key: demo-void-1
+
+### Balance
+GET {{host}}/v1/accounts/{{payer}}/balance
+Authorization: Bearer {{token}}
+
+### Statement, newest first; pass nextCursor from the previous page as cursor
+GET {{host}}/v1/accounts/{{payer}}/statement?limit=20
+Authorization: Bearer {{token}}
